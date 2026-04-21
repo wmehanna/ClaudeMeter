@@ -1,0 +1,162 @@
+when:
+  - event: manual
+  - event: tag
+    ref: refs/tags/v*
+
+labels:
+  platform: macos
+
+clone:
+  - name: clone
+    image: woodpeckerci/plugin-git
+
+steps:
+  - name: notify_pending
+    image: bash
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - |
+        curl -s -X POST \
+          -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Content-Type: application/json" \
+          https://api.github.com/repos/$CI_REPO/statuses/$CI_COMMIT_SHA \
+          -d "{\"state\":\"pending\",\"target_url\":\"$CI_PIPELINE_URL\",\"description\":\"DMG build in progress...\",\"context\":\"woodpecker/release\"}"
+
+  - name: test
+    image: bash
+    commands:
+      - |
+        echo "→ Running test suite..."
+        xcodebuild test \
+          -project ClaudeMeter.xcodeproj \
+          -scheme ClaudeMeter \
+          -configuration Debug \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          2>&1 | tee /tmp/test.log | grep -E "TEST SUCCEEDED|TEST FAILED|error:"
+        grep -q "TEST SUCCEEDED" /tmp/test.log || { echo "✗ Tests failed"; exit 1; }
+        echo "✓ Tests passed"
+
+  - name: build_dmg
+    image: bash
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - |
+        set -euo pipefail
+
+        # Resolve version: tag name → fallback to marketing version + pipeline number
+        if [ -n "${CI_COMMIT_TAG:-}" ]; then
+          VERSION="${CI_COMMIT_TAG#v}"
+        else
+          MARKETING=$(xcodebuild -showBuildSettings \
+            -project ClaudeMeter.xcodeproj \
+            -scheme ClaudeMeter 2>/dev/null \
+            | awk '/MARKETING_VERSION/{print $3}')
+          VERSION="${MARKETING}-build.${CI_PIPELINE_NUMBER}"
+        fi
+
+        echo "→ Building version $VERSION..."
+
+        # Archive (universal arm64 + x86_64)
+        xcodebuild archive \
+          -project ClaudeMeter.xcodeproj \
+          -scheme ClaudeMeter \
+          -configuration Release \
+          -archivePath build/ClaudeMeter.xcarchive \
+          ARCHS="arm64 x86_64" \
+          ONLY_ACTIVE_ARCH=NO \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          2>&1 | grep -E "error:|warning:|ARCHIVE SUCCEEDED|ARCHIVE FAILED"
+
+        # Copy .app directly from archive (no signing export needed)
+        APP_PATH="build/ClaudeMeter.xcarchive/Products/Applications/ClaudeMeter.app"
+        [ -d "$APP_PATH" ] || { echo "✗ .app not found in archive"; exit 1; }
+
+        # Stage DMG contents with Applications symlink
+        DMG_STAGE="/tmp/claudemeter-dmg-$$"
+        rm -rf "$DMG_STAGE" && mkdir "$DMG_STAGE"
+        cp -r "$APP_PATH" "$DMG_STAGE/ClaudeMeter.app"
+        ln -s /Applications "$DMG_STAGE/Applications"
+
+        # Build DMG
+        DMG_NAME="ClaudeMeter-${VERSION}.dmg"
+        hdiutil create \
+          -volname "ClaudeMeter ${VERSION}" \
+          -srcfolder "$DMG_STAGE" \
+          -ov \
+          -format UDZO \
+          "build/${DMG_NAME}"
+        rm -rf "$DMG_STAGE"
+
+        echo "✓ DMG built: build/${DMG_NAME}"
+        echo "$VERSION" > build/.version
+        echo "$DMG_NAME" > build/.dmg_name
+
+  - name: github_release
+    image: bash
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - |
+        set -euo pipefail
+
+        VERSION=$(cat build/.version)
+        DMG_NAME=$(cat build/.dmg_name)
+
+        # Create or update GitHub release
+        TAG="v${VERSION}"
+
+        # If tag doesn't exist yet (manual run without a tag), create it
+        git tag "$TAG" 2>/dev/null || true
+        git push https://x-access-token:${GITHUB_TOKEN}@github.com/${CI_REPO}.git "$TAG" 2>/dev/null || true
+
+        # Create release (idempotent — delete existing draft if any)
+        gh release delete "$TAG" --repo "$CI_REPO" --yes 2>/dev/null || true
+        gh release create "$TAG" \
+          --repo "$CI_REPO" \
+          --title "ClaudeMeter ${VERSION}" \
+          --notes "$(printf '## ClaudeMeter %s\n\n### Install\n1. Download the DMG below\n2. Open it and drag ClaudeMeter.app to Applications\n3. Right-click → Open on first launch (unsigned build)\n\n### Changes\nSee [commits](%s/commits/%s) for full change history.' "$VERSION" "https://github.com/$CI_REPO" "$CI_COMMIT_SHA")" \
+          "build/${DMG_NAME}"
+
+        echo "✓ Released: https://github.com/${CI_REPO}/releases/tag/${TAG}"
+
+  - name: notify_result
+    image: bash
+    when:
+      - status: [success, failure]
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - |
+        VERSION=$(cat build/.version 2>/dev/null || echo "unknown")
+        DMG_NAME=$(cat build/.dmg_name 2>/dev/null || echo "ClaudeMeter.dmg")
+
+        if [ "$CI_PIPELINE_STATUS" = "success" ]; then
+          GH_STATE="success"
+          GH_DESC="DMG build passed"
+          TG_EMOJI="✅"
+          TG_EXTRA="%0ADMG%3A%20${DMG_NAME}%0ARelease%3A%20https%3A%2F%2Fgithub.com%2F${CI_REPO}%2Freleases%2Ftag%2Fv${VERSION}"
+        else
+          GH_STATE="failure"
+          GH_DESC="DMG build failed"
+          TG_EMOJI="❌"
+          TG_EXTRA=""
+        fi
+
+        curl -s -X POST \
+          -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Content-Type: application/json" \
+          https://api.github.com/repos/$CI_REPO/statuses/$CI_COMMIT_SHA \
+          -d "{\"state\":\"$GH_STATE\",\"target_url\":\"$CI_PIPELINE_URL\",\"description\":\"$GH_DESC\",\"context\":\"woodpecker/release\"}"
+
+        curl -s -X POST "https://api.telegram.org/bot8064947491:AAFP2rBtBZAKrXy_C0cQ5QM7RqaqiIPje9w/sendMessage" \
+          -d "chat_id=1618533723&text=${TG_EMOJI}%20ClaudeMeter%20CI%20%E2%80%94%20${GH_DESC}%0AVersion%3A%20${VERSION}%0ABranch%3A%20${CI_COMMIT_BRANCH}%0ACommit%3A%20${CI_COMMIT_SHA:0:7}${TG_EXTRA}%0A${CI_PIPELINE_URL}&disable_web_page_preview=true"
