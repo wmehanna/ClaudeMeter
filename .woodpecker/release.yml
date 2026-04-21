@@ -2,6 +2,8 @@ when:
   - event: manual
   - event: tag
     ref: refs/tags/v*
+  - event: push
+    branch: main
 
 labels:
   platform: macos
