@@ -164,29 +164,18 @@ steps:
         if [ "${CI_PIPELINE_STATUS:-}" = "success" ]; then
           GH_STATE="success"
           GH_DESC="DMG build passed (v${VERSION})"
-          MSG="✅ <b>ClaudeMeter Build #${CI_PIPELINE_NUMBER} — Passed</b>
-
-📦 <b>Version:</b> <code>${VERSION}</code>
-🌿 <b>Branch:</b> <code>${CI_COMMIT_BRANCH:-main}</code>
-🔖 <b>Commit:</b> <a href=\"${COMMIT_URL}\">${CI_COMMIT_SHA:0:7}</a>
-💬 <i>${COMMIT_MSG}</i>
-🎯 <b>Trigger:</b> ${TRIGGER}
-
-📥 <b>DMG:</b> <code>${DMG_NAME}</code>
-🚀 <a href=\"${RELEASE_URL}\">GitHub Release v${VERSION}</a>
-
-🔍 <a href=\"${CI_PIPELINE_URL}\">View Pipeline #${CI_PIPELINE_NUMBER}</a>"
+          MSG=$(printf '✅ <b>ClaudeMeter Build #%s — Passed</b>\n\n📦 <b>Version:</b> <code>%s</code>\n🌿 <b>Branch:</b> <code>%s</code>\n🔖 <b>Commit:</b> <a href="%s">%s</a>\n💬 <i>%s</i>\n🎯 <b>Trigger:</b> %s\n\n📥 <b>DMG:</b> <code>%s</code>\n🚀 <a href="%s">GitHub Release v%s</a>\n\n🔍 <a href="%s">View Pipeline #%s</a>' \
+            "${CI_PIPELINE_NUMBER}" "${VERSION}" "${CI_COMMIT_BRANCH:-main}" \
+            "${COMMIT_URL}" "${CI_COMMIT_SHA:0:7}" "${COMMIT_MSG}" "${TRIGGER}" \
+            "${DMG_NAME}" "${RELEASE_URL}" "${VERSION}" \
+            "${CI_PIPELINE_URL}" "${CI_PIPELINE_NUMBER}")
         else
           GH_STATE="failure"
           GH_DESC="DMG build failed"
-          MSG="❌ <b>ClaudeMeter Build #${CI_PIPELINE_NUMBER} — Failed</b>
-
-🌿 <b>Branch:</b> <code>${CI_COMMIT_BRANCH:-main}</code>
-🔖 <b>Commit:</b> <a href=\"${COMMIT_URL}\">${CI_COMMIT_SHA:0:7}</a>
-💬 <i>${COMMIT_MSG}</i>
-🎯 <b>Trigger:</b> ${TRIGGER}
-
-🔍 <a href=\"${CI_PIPELINE_URL}\">View Pipeline #${CI_PIPELINE_NUMBER}</a>"
+          MSG=$(printf '❌ <b>ClaudeMeter Build #%s — Failed</b>\n\n🌿 <b>Branch:</b> <code>%s</code>\n🔖 <b>Commit:</b> <a href="%s">%s</a>\n💬 <i>%s</i>\n🎯 <b>Trigger:</b> %s\n\n🔍 <a href="%s">View Pipeline #%s</a>' \
+            "${CI_PIPELINE_NUMBER}" "${CI_COMMIT_BRANCH:-main}" \
+            "${COMMIT_URL}" "${CI_COMMIT_SHA:0:7}" "${COMMIT_MSG}" "${TRIGGER}" \
+            "${CI_PIPELINE_URL}" "${CI_PIPELINE_NUMBER}")
         fi
 
         curl -s -X POST \
