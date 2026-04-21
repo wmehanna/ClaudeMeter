@@ -139,19 +139,54 @@ steps:
         from_secret: github_token
     commands:
       - |
-        VERSION=$(cat build/.version 2>/dev/null || echo "unknown")
-        DMG_NAME=$(cat build/.dmg_name 2>/dev/null || echo "ClaudeMeter.dmg")
+        VERSION=$(cat build/.version 2>/dev/null || \
+          xcodebuild -showBuildSettings \
+            -project ClaudeMeter.xcodeproj \
+            -scheme ClaudeMeter 2>/dev/null \
+            | awk '/MARKETING_VERSION/{print $3}' || echo "unknown")
+        DMG_NAME=$(cat build/.dmg_name 2>/dev/null || echo "")
 
-        if [ "$CI_PIPELINE_STATUS" = "success" ]; then
+        # Trigger type
+        case "${CI_PIPELINE_EVENT:-}" in
+          tag)    TRIGGER="🏷 Tag ${CI_COMMIT_TAG:-}" ;;
+          manual) TRIGGER="🖐 Manual" ;;
+          push)   TRIGGER="🔀 Push to ${CI_COMMIT_BRANCH:-main}" ;;
+          *)      TRIGGER="${CI_PIPELINE_EVENT:-unknown}" ;;
+        esac
+
+        # First line of commit message, truncated
+        COMMIT_MSG=$(printf '%s' "${CI_COMMIT_MESSAGE:-}" | head -1 | cut -c1-72)
+
+        REPO_URL="https://github.com/${CI_REPO}"
+        COMMIT_URL="${REPO_URL}/commit/${CI_COMMIT_SHA}"
+        RELEASE_URL="${REPO_URL}/releases/tag/v${VERSION}"
+
+        if [ "${CI_PIPELINE_STATUS:-}" = "success" ]; then
           GH_STATE="success"
-          GH_DESC="DMG build passed"
-          TG_EMOJI="✅"
-          TG_EXTRA="%0ADMG%3A%20${DMG_NAME}%0ARelease%3A%20https%3A%2F%2Fgithub.com%2F${CI_REPO}%2Freleases%2Ftag%2Fv${VERSION}"
+          GH_DESC="DMG build passed (v${VERSION})"
+          MSG="✅ <b>ClaudeMeter Build #${CI_PIPELINE_NUMBER} — Passed</b>
+
+📦 <b>Version:</b> <code>${VERSION}</code>
+🌿 <b>Branch:</b> <code>${CI_COMMIT_BRANCH:-main}</code>
+🔖 <b>Commit:</b> <a href=\"${COMMIT_URL}\">${CI_COMMIT_SHA:0:7}</a>
+💬 <i>${COMMIT_MSG}</i>
+🎯 <b>Trigger:</b> ${TRIGGER}
+
+📥 <b>DMG:</b> <code>${DMG_NAME}</code>
+🚀 <a href=\"${RELEASE_URL}\">GitHub Release v${VERSION}</a>
+
+🔍 <a href=\"${CI_PIPELINE_URL}\">View Pipeline #${CI_PIPELINE_NUMBER}</a>"
         else
           GH_STATE="failure"
           GH_DESC="DMG build failed"
-          TG_EMOJI="❌"
-          TG_EXTRA=""
+          MSG="❌ <b>ClaudeMeter Build #${CI_PIPELINE_NUMBER} — Failed</b>
+
+🌿 <b>Branch:</b> <code>${CI_COMMIT_BRANCH:-main}</code>
+🔖 <b>Commit:</b> <a href=\"${COMMIT_URL}\">${CI_COMMIT_SHA:0:7}</a>
+💬 <i>${COMMIT_MSG}</i>
+🎯 <b>Trigger:</b> ${TRIGGER}
+
+🔍 <a href=\"${CI_PIPELINE_URL}\">View Pipeline #${CI_PIPELINE_NUMBER}</a>"
         fi
 
         curl -s -X POST \
@@ -160,5 +195,9 @@ steps:
           https://api.github.com/repos/$CI_REPO/statuses/$CI_COMMIT_SHA \
           -d "{\"state\":\"$GH_STATE\",\"target_url\":\"$CI_PIPELINE_URL\",\"description\":\"$GH_DESC\",\"context\":\"woodpecker/release\"}"
 
+        printf '%s' "$MSG" > /tmp/tg_msg.txt
         curl -s -X POST "https://api.telegram.org/bot8064947491:AAFP2rBtBZAKrXy_C0cQ5QM7RqaqiIPje9w/sendMessage" \
-          -d "chat_id=1618533723&text=${TG_EMOJI}%20ClaudeMeter%20CI%20%E2%80%94%20${GH_DESC}%0AVersion%3A%20${VERSION}%0ABranch%3A%20${CI_COMMIT_BRANCH}%0ACommit%3A%20${CI_COMMIT_SHA:0:7}${TG_EXTRA}%0A${CI_PIPELINE_URL}&disable_web_page_preview=true"
+          --data-urlencode "text@/tmp/tg_msg.txt" \
+          -d "chat_id=1618533723" \
+          -d "parse_mode=HTML" \
+          -d "disable_web_page_preview=true"
