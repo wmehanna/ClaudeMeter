@@ -1,40 +1,63 @@
-# ClaudeMeter
+<h1 align="center">
+  <br>
+  🤖 ClaudeMeter
+  <br>
+</h1>
 
-![ClaudeMeter](docs/heading.png)
+<p align="center">
+  <strong>Real-time Claude.ai usage monitoring in your macOS menu bar.</strong><br>
+  Automatic metric discovery — new limits appear the moment Anthropic adds them.
+</p>
 
-Keep track of your Claude.ai plan usage at a glance — now with automatic discovery of new usage metrics as Anthropic adds them.
+<p align="center">
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-14%2B%20Sonoma-000000?logo=apple&logoColor=white">
+  <img alt="Swift" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white">
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-blue">
+  <a href="https://ko-fi.com/lucidfabrics">
+    <img alt="Support on Ko-fi" src="https://img.shields.io/badge/Support-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white">
+  </a>
+  <a href="https://buymeacoffee.com/lucidfabrics">
+    <img alt="Buy Me a Coffee" src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?logo=buymeacoffee&logoColor=black">
+  </a>
+  <a href="https://github.com/sponsors/wmehanna">
+    <img alt="Sponsor on GitHub" src="https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?logo=github&logoColor=white">
+  </a>
+</p>
 
-## What's New
+---
 
-This fork extends the original [ClaudeMeter by Edd Mann](https://github.com/eddmann/ClaudeMeter) with **dynamic metric discovery**: whenever Anthropic adds a new usage limit to the API (a new model tier, a new window, etc.), the app picks it up automatically — no update required.
+## 🧰 What It Does
 
-### New Features
+ClaudeMeter sits in your macOS menu bar and tracks every usage limit Claude.ai reports — 5-hour session, 7-day weekly, Sonnet, Design, and any new limits Anthropic adds in the future. No app update required.
 
-- **Dynamic metric discovery** — The app reads every field returned by the Claude.ai usage API at runtime. New metrics appear in the popover, icon, and settings the moment they show up in the API response, without any code change.
-- **Custom Pills icon style** — Display up to 4 live usage percentages side-by-side in your menu bar with distinct colour-coding per metric (session = status colour, weekly = purple, Sonnet = orange, Design = teal, unknown = palette-assigned).
-- **Custom Bar icon style** — A compact colour-coded progress bar that can track any metric, not just the session.
-- **Dual Bar icon style** — Shows two metrics simultaneously as stacked bars.
-- **Per-metric popover visibility** — Toggle each discovered metric on/off in the popover independently. Previously only Sonnet had its own toggle.
-- **Configurable metric picker** — All icon styles that support multiple metrics (Custom Pills, Custom Bar, Dual Bar) expose a reorderable chip picker: tap to add/remove, drag to reorder, up to 4 slots.
-- **Colour-coded metric chips** — The metric picker and popover consistently colour each metric: session follows your usage status, weekly is purple, Sonnet is orange, Design is teal, and any future metric gets a hash-stable hue from a fixed palette.
+**You get:**
+- A colour-coded menu bar icon that changes with your usage level
+- A click-to-expand popover with per-metric progress bars and reset countdowns
+- 8 icon styles to match your workflow and density preferences
+- Smart notifications at configurable warning and critical thresholds
+- A local JSON export at `~/.claudemeter/usage.json` for shell prompts, Claude Code statusline, and custom dashboards
 
-## Features
+### How It Compares to the Original
 
-- **Real-time usage monitoring** — Tracks your 5-hour session, 7-day weekly, Sonnet, Design, and any new limits Anthropic introduces
-- **Menu bar integration** — Clean, colour-coded usage indicator that lives in your macOS menu bar
-- **8 icon styles** — Battery, Circular, Minimal, Segments, Dual Bar, Custom Bar, Custom Pills, Gauge
-- **Pacing indicator** — Flame icon warns when you're using Claude faster than a sustainable pace
-- **Smart notifications** — Configurable alerts at warning and critical thresholds (defaults: 75% and 90%), plus a reset notification when your limits refresh
-- **Auto-refresh** — Automatic usage updates every 1 minute, 5 minutes, or 10 minutes
+| | [eddmann/ClaudeMeter](https://github.com/eddmann/ClaudeMeter) | This fork |
+|---|---|---|
+| New API metrics | Requires app update | Auto-discovered at runtime |
+| Icon styles | 6 | 8 (+ Custom Pills, Custom Bar) |
+| Multi-metric icon | Fixed 3-metric triple pills | Up to 4 metrics, reorderable |
+| Popover visibility | Sonnet toggle only | Per-metric toggle for every discovered limit |
+| Metric colours | Hard-coded | Hash-stable palette for unknown future metrics |
+| Settings migration | — | Non-crashing migration from all prior formats |
 
-## Screenshots
+---
+
+## 📸 Screenshots
 
 ### Usage Popover
 
 Click the menu bar icon to see live usage for every discovered metric:
 
 <p align="center">
-  <img src="docs/popover.png" width="320" alt="Usage popover showing Session, Weekly, Sonnet and Design metrics">
+  <img src="docs/popover.png" width="300" alt="Usage popover showing Session, Weekly, Sonnet and Design metrics">
 </p>
 
 Each card shows the current percentage, a colour-coded progress bar, the reset time, and a pacing flame when you are consuming your quota faster than it replenishes.
@@ -44,46 +67,60 @@ Each card shows the current percentage, a colour-coded progress bar, the reset t
 <p align="center">
   <img src="docs/menubar-custompills.png" width="220" alt="Custom Pills — three metrics side by side">
   &nbsp;&nbsp;&nbsp;
-  <img src="docs/menubar-dualbar.png" width="120" alt="Dual Bar — two stacked bars">
+  <img src="docs/menubar-dualbar.png" width="110" alt="Dual Bar — two stacked bars">
   &nbsp;&nbsp;&nbsp;
-  <img src="docs/menubar-battery.png" width="100" alt="Battery — single metric">
+  <img src="docs/menubar-battery.png" width="90" alt="Battery — single metric">
 </p>
 
-*Left to right: Custom Pills (3 metrics, each colour-coded), Dual Bar (session + weekly), Battery (single metric)*
+*Left to right: Custom Pills (3 metrics, colour-coded per limit), Dual Bar (session + weekly), Battery (single metric)*
 
 ### Settings
 
 Configure icon style, choose which metrics appear in each view, and toggle popover visibility per metric:
 
 <p align="center">
-  <img src="docs/settings-general-new.png" width="520" alt="Settings showing Popover Metrics toggles, icon style grid, and metric chip picker">
+  <img src="docs/settings-general-new.png" width="500" alt="Settings showing Popover Metrics toggles, icon style grid, and metric chip picker">
 </p>
 
-The **Popover Metrics** section lists every metric the API currently returns (excluding session, which is always shown). The **Metrics** chip row lets you reorder and limit which metrics appear in multi-metric icon styles.
+The **Popover Metrics** section lists every metric the API currently returns. The **Metrics** chip row lets you reorder and limit which metrics appear in multi-metric icon styles.
 
-### Notifications
+---
 
-ClaudeMeter sends native macOS notifications when you reach warning or critical thresholds:
+## ✨ New Features in This Fork
 
-<p align="center">
-  <img src="docs/notifications.png" width="450" alt="Usage notifications">
-</p>
+### Dynamic Metric Discovery
 
-### Setup Wizard
+The original app had metrics hard-coded as a Swift enum. This fork replaces that with a runtime `DiscoveredMetric` struct and a dynamic JSON decoder (`AnyCodingKey`) that reads any field the API returns. When Anthropic adds `seven_day_opus` or a new window type, it shows up automatically.
 
-<p align="center">
-  <img src="docs/setup-wizard.png" width="600" alt="First-time setup wizard">
-</p>
+### Custom Pills Icon Style
 
-## Installation
+Display up to 4 live percentages side-by-side in your menu bar, each in a distinct colour:
 
-### Manual Download
+| Metric key | Colour |
+|---|---|
+| `five_hour` (session) | Follows usage status (green / orange / red) |
+| `seven_day` (weekly) | Purple |
+| `seven_day_sonnet` | Orange |
+| `seven_day_omelette` (Design) | Teal |
+| Any future metric | Hash-stable colour from a fixed palette |
 
-1. Download the latest release from [GitHub Releases](https://github.com/wmehanna/ClaudeMeter/releases)
-2. Unzip and move `ClaudeMeter.app` to Applications
-3. Right-click → Open (first launch only, as the app is unsigned in this fork)
+### Custom Bar and Dual Bar
 
-### Build from Source
+Both styles now support any metric — not just session. Pick any two discovered metrics for Dual Bar, or configure Custom Bar to track the limit you care about most.
+
+### Per-Metric Popover Visibility
+
+Each discovered limit gets its own toggle in Settings. Previously only Sonnet had a show/hide switch. Now every metric the API returns is individually controllable.
+
+### Metric Chip Picker
+
+A reorderable chip row lets you drag metrics into the order you want them displayed in multi-metric icon styles. Tap a chip to add or remove it, up to a 4-metric maximum.
+
+---
+
+## 🚀 Installation
+
+### Build from Source (Recommended)
 
 ```bash
 git clone https://github.com/wmehanna/ClaudeMeter.git
@@ -92,18 +129,19 @@ open ClaudeMeter.xcodeproj
 # Press ⌘R in Xcode
 ```
 
-Requires Xcode 16.0+ and macOS 14.0+.
+Requires Xcode 16.0+ and macOS 14.0 (Sonoma)+.
 
-## Usage
+### Manual Download
 
-### First Launch
+1. Download the latest release from [GitHub Releases](https://github.com/wmehanna/ClaudeMeter/releases)
+2. Unzip and move `ClaudeMeter.app` to Applications
+3. Right-click → Open on first launch (unsigned in this fork)
 
-1. ClaudeMeter appears in your menu bar as a gauge icon
-2. The setup wizard guides you through initial configuration
-3. Enter your Claude session key (found in Claude.ai browser cookies)
-4. The app validates your key and begins monitoring usage
+---
 
-### Finding Your Session Key
+## 🔑 Finding Your Session Key
+
+Your Claude session key is stored in your browser cookies.
 
 **Chrome / Edge:**
 1. Open [claude.ai](https://claude.ai)
@@ -120,7 +158,9 @@ Requires Xcode 16.0+ and macOS 14.0+.
 2. Press `F12` → Storage → Cookies → `https://claude.ai`
 3. Copy the `sessionKey` value
 
-### Integration with External Tools
+---
+
+## 🔗 Integration with External Tools
 
 ClaudeMeter exports usage data to `~/.claudemeter/usage.json`:
 
@@ -138,7 +178,7 @@ ClaudeMeter exports usage data to `~/.claudemeter/usage.json`:
 }
 ```
 
-**Claude Code statusline example** — create `~/.claude/statusline.sh`:
+**Claude Code statusline** — create `~/.claude/statusline.sh`:
 
 ```bash
 #!/bin/bash
@@ -165,12 +205,9 @@ Then in `~/.claude/settings.json`:
 }
 ```
 
-## Requirements
+---
 
-- macOS 14.0 (Sonoma) or later
-- Active Claude.ai account with session key
-
-## Disclaimer
+## ⚠️ Disclaimer
 
 **This is an unofficial tool** and is not affiliated with, endorsed by, or supported by Anthropic PBC.
 
@@ -185,10 +222,12 @@ This application accesses Claude's web API using browser-based authentication. *
 - Usage data is cached locally (unencrypted, contains usage percentages only)
 - No data is sent to third-party servers
 
-## Credits
+---
+
+## 🙏 Credits & License
 
 Based on [ClaudeMeter](https://github.com/eddmann/ClaudeMeter) by [Edd Mann](https://github.com/eddmann), MIT License.
 
-## License
+Built and maintained in my free time. If it keeps you from burning your Claude quota unexpectedly, [a coffee helps](https://ko-fi.com/lucidfabrics) or [buy me one on BMC](https://buymeacoffee.com/lucidfabrics). ☕
 
-MIT License — see [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE) for details.
