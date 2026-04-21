@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+
+# Block direct commits to main
+if [ "$BRANCH" = "main" ]; then
+  echo ""
+  echo "✗ Direct commits to 'main' are not allowed."
+  echo "  Create a feature branch:  git checkout -b feat/your-change"
+  echo ""
+  exit 1
+fi
+
+# Run test suite
+echo "→ Running tests..."
+if ! xcodebuild test \
+  -project ClaudeMeter.xcodeproj \
+  -scheme ClaudeMeter \
+  -configuration Debug \
+  CODE_SIGN_IDENTITY="" \
+  CODE_SIGNING_REQUIRED=NO \
+  CODE_SIGNING_ALLOWED=NO \
+  2>&1 | tee /tmp/claudemeter-test.log | grep -E "TEST SUCCEEDED|TEST FAILED|error:"; then
+  :
+fi
+
+if grep -q "TEST SUCCEEDED" /tmp/claudemeter-test.log; then
+  echo "✓ Tests passed"
+  exit 0
+else
+  echo ""
+  echo "✗ Tests failed — commit blocked."
+  echo "  Full log: /tmp/claudemeter-test.log"
+  echo ""
+  exit 1
+fi
