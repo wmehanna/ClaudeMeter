@@ -258,8 +258,9 @@ final class UsageServiceTests: XCTestCase {
 
         let usageData = try await service.fetchUsage(forceRefresh: true)
 
-        XCTAssertEqual(usageData.sonnetUsage?.utilization, TestConstants.sonnetPercentage)
-        if let resetAt = usageData.sonnetUsage?.resetAt {
+        let sonnetLimit = usageData.metricValues["seven_day_sonnet"]
+        XCTAssertEqual(sonnetLimit?.utilization, TestConstants.sonnetPercentage)
+        if let resetAt = sonnetLimit?.resetAt {
             assertDate(resetAt, equalsIso8601String: TestConstants.sonnetResetDateString)
         } else {
             XCTFail("Expected sonnet usage reset date")
@@ -277,26 +278,21 @@ private func makeUsageResponseData(
     sonnetUtilization: Double?,
     sonnetResetAt: String?
 ) throws -> Data {
-    let sonnetUsage = sonnetUtilization.map {
-        UsageLimitResponse(
-            utilization: $0,
-            resetsAt: sonnetResetAt
-        )
+    func limitJSON(_ utilization: Double, _ resetsAt: String?) -> Any {
+        var d: [String: Any] = ["utilization": utilization]
+        if let r = resetsAt { d["resets_at"] = r }
+        return d
     }
 
-    let response = UsageAPIResponse(
-        fiveHour: UsageLimitResponse(
-            utilization: sessionUtilization,
-            resetsAt: sessionResetAt
-        ),
-        sevenDay: UsageLimitResponse(
-            utilization: weeklyUtilization,
-            resetsAt: weeklyResetAt
-        ),
-        sevenDaySonnet: sonnetUsage
-    )
+    var json: [String: Any] = [
+        "five_hour": limitJSON(sessionUtilization, sessionResetAt),
+        "seven_day":  limitJSON(weeklyUtilization, weeklyResetAt),
+    ]
+    if let su = sonnetUtilization {
+        json["seven_day_sonnet"] = limitJSON(su, sonnetResetAt)
+    }
 
-    return try JSONEncoder().encode(response)
+    return try JSONSerialization.data(withJSONObject: json)
 }
 
 private func makeUsageData(percentage: Double) -> UsageData {
@@ -307,7 +303,7 @@ private func makeUsageData(percentage: Double) -> UsageData {
     return UsageData(
         sessionUsage: sessionUsage,
         weeklyUsage: weeklyUsage,
-        sonnetUsage: nil,
+        metricValues: ["five_hour": sessionUsage, "seven_day": weeklyUsage],
         lastUpdated: Date()
     )
 }

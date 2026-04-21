@@ -40,14 +40,15 @@ extension UsageLimit {
         }
     }
 
-    /// Human-readable reset time (uses system timezone via RelativeDateTimeFormatter)
+    /// Reset time in "EEE h:mm a" format matching claude.ai display (e.g. "Thu 3:00 PM")
     var resetDescription: String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter.localizedString(for: resetAt, relativeTo: Date())
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE h:mm a"
+        formatter.timeZone = .current
+        return formatter.string(from: resetAt)
     }
 
-    /// Exact reset time formatted in user's timezone for tooltip display
+    /// Full reset date/time for tooltip
     var resetTimeFormatted: String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium

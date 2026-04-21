@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Two stacked progress bars with customizable metrics
-struct DualBarIcon: View {
+/// Stacked progress bars for selected metrics (up to 3)
+struct CustomBarIcon: View {
     let metrics: [DiscoveredMetric]
     let metricValues: [String: Double]
     let status: UsageStatus
@@ -9,8 +9,8 @@ struct DualBarIcon: View {
     let isStale: Bool
 
     private let barWidth: CGFloat = 32
-    private let barHeight: CGFloat = 5
-    private let barSpacing: CGFloat = 2
+    private let barHeight: CGFloat = 4
+    private let barSpacing: CGFloat = 1.5
 
     var body: some View {
         HStack(spacing: 4) {
@@ -19,7 +19,7 @@ struct DualBarIcon: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(isStale ? .gray : status.color)
             } else {
-                let visible = Array(metrics.prefix(2))
+                let visible = Array(metrics.prefix(3))
                 VStack(spacing: barSpacing) {
                     ForEach(visible) { metric in
                         ProgressBar(percentage: metricValues[metric.key] ?? 0,
@@ -40,8 +40,7 @@ struct DualBarIcon: View {
         }
         .frame(height: 22)
         .padding(.horizontal, 4)
-        .accessibilityLabel(metrics.prefix(2).map { "\($0.displayName): \(Int(metricValues[$0.key] ?? 0))%" }.joined(separator: ", "))
-        .accessibilityValue(status.accessibilityDescription)
+        .accessibilityLabel(metrics.prefix(3).map { "\($0.displayName): \(Int(metricValues[$0.key] ?? 0))%" }.joined(separator: ", "))
     }
 }
 
@@ -62,12 +61,12 @@ private struct ProgressBar: View {
 }
 
 #Preview {
-    let values: [String: Double] = ["five_hour": 35, "seven_day": 20, "seven_day_sonnet": 72]
+    let values: [String: Double] = ["five_hour": 17, "seven_day": 55, "seven_day_sonnet": 74]
     VStack(spacing: 20) {
-        DualBarIcon(metrics: DiscoveredMetric.defaults.filter { ["five_hour","seven_day"].contains($0.key) },
-                    metricValues: values, status: .safe, isLoading: false, isStale: false)
-        DualBarIcon(metrics: DiscoveredMetric.defaults.filter { ["five_hour","seven_day_sonnet"].contains($0.key) },
-                    metricValues: values, status: .warning, isLoading: false, isStale: false)
+        CustomBarIcon(metrics: DiscoveredMetric.defaults.filter { ["five_hour","seven_day","seven_day_sonnet"].contains($0.key) },
+                      metricValues: values, status: .safe, isLoading: false, isStale: false)
+        CustomBarIcon(metrics: DiscoveredMetric.defaults.filter { ["five_hour","seven_day"].contains($0.key) },
+                      metricValues: values, status: .warning, isLoading: false, isStale: false)
     }
     .padding()
 }

@@ -169,7 +169,7 @@ private func makeUsageData(percentage: Double) -> UsageData {
     return UsageData(
         sessionUsage: sessionUsage,
         weeklyUsage: weeklyUsage,
-        sonnetUsage: nil,
+        metricValues: ["five_hour": sessionUsage, "seven_day": weeklyUsage],
         lastUpdated: Date()
     )
 }

@@ -84,13 +84,18 @@ struct IconStyleCard: View {
     }
 
     private var iconPreview: some View {
-        MenuBarIconView(
-            percentage: previewPercentage,
+        let values: [String: Double] = [
+            "five_hour": previewPercentage,
+            "seven_day": previewWeeklyPercentage,
+            "seven_day_sonnet": 77,
+            "seven_day_omelette": 12,
+        ]
+        return MenuBarIconView(
+            metricValues: values,
             status: previewStatus,
             isLoading: false,
             isStale: false,
-            iconStyle: style,
-            weeklyPercentage: previewWeeklyPercentage
+            iconStyle: style
         )
     }
 }

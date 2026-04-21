@@ -7,47 +7,43 @@
 
 import Foundation
 
-/// Complete usage data across all limit types
+/// Complete usage data. metricValues holds every non-null metric discovered
+/// from the API response, keyed by the API field name.
 struct UsageData: Codable, Equatable, Sendable {
-    /// 5-hour rolling session usage
     let sessionUsage: UsageLimit
-
-    /// 7-day weekly usage across all models
     let weeklyUsage: UsageLimit
-
-    /// 7-day Sonnet-specific usage (nil if not used)
-    let sonnetUsage: UsageLimit?
-
-    /// Timestamp of when this data was fetched
+    let discoveredMetrics: [DiscoveredMetric]
+    let metricValues: [String: UsageLimit]
     let lastUpdated: Date
 
+    init(sessionUsage: UsageLimit, weeklyUsage: UsageLimit,
+         discoveredMetrics: [DiscoveredMetric] = [],
+         metricValues: [String: UsageLimit] = [:],
+         lastUpdated: Date) {
+        self.sessionUsage = sessionUsage
+        self.weeklyUsage = weeklyUsage
+        self.discoveredMetrics = discoveredMetrics
+        self.metricValues = metricValues
+        self.lastUpdated = lastUpdated
+    }
+
     enum CodingKeys: String, CodingKey {
-        case sessionUsage = "session_usage"
-        case weeklyUsage = "weekly_usage"
-        case sonnetUsage = "sonnet_usage"
-        case lastUpdated = "last_updated"
+        case sessionUsage      = "session_usage"
+        case weeklyUsage       = "weekly_usage"
+        case discoveredMetrics = "discovered_metrics"
+        case metricValues      = "metric_values"
+        case lastUpdated       = "last_updated"
     }
 }
 
 extension UsageData {
-    /// Returns the primary usage level for menu bar display
-    var primaryStatus: UsageStatus {
-        sessionUsage.status
-    }
-
-    /// Human-readable staleness indicator
-    var freshnessDescription: String {
-        let elapsed = Date().timeIntervalSince(lastUpdated)
-        if elapsed < 60 {
-            return "just now"
-        } else if elapsed < 3600 {
-            return "\(Int(elapsed / 60)) minutes ago"
-        } else {
-            return "\(Int(elapsed / 3600)) hours ago"
-        }
-    }
+    var primaryStatus: UsageStatus { sessionUsage.status }
 
     var isStale: Bool {
         Date().timeIntervalSince(lastUpdated) > Constants.Refresh.stalenessThreshold
+    }
+
+    func value(forKey key: String) -> Double {
+        metricValues[key]?.utilization ?? 0
     }
 }

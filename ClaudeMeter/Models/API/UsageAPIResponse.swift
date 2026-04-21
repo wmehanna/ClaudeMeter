@@ -7,23 +7,18 @@
 
 import Foundation
 
-/// API response for usage data
-struct UsageAPIResponse: Codable {
-    let fiveHour: UsageLimitResponse
-    let sevenDay: UsageLimitResponse
-    let sevenDaySonnet: UsageLimitResponse?
-
-    enum CodingKeys: String, CodingKey {
-        case fiveHour = "five_hour"
-        case sevenDay = "seven_day"
-        case sevenDaySonnet = "seven_day_sonnet"
-    }
+/// Flexible coding key that accepts any string key from the JSON response.
+private struct AnyCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int? = nil
+    init(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { nil }
 }
 
-/// Individual usage limit response from API
+/// Individual usage limit from the API
 struct UsageLimitResponse: Codable {
-    let utilization: Double // Percentage 0-100
-    let resetsAt: String? // ISO8601 string, can be null
+    let utilization: Double
+    let resetsAt: String?
 
     enum CodingKeys: String, CodingKey {
         case utilization
@@ -46,57 +41,67 @@ enum MappingError: LocalizedError {
     }
 }
 
-/// Extension to map API response to domain model
-extension UsageAPIResponse {
+/// Dynamically decoded API response.
+/// Captures any non-null five_hour / seven_day* field — new metrics added by
+/// Anthropic are discovered automatically without an app update.
+struct UsageAPIResponse: Decodable {
+    let discoveredMetrics: [DiscoveredMetric]
+    let metricLimits: [String: UsageLimitResponse]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: AnyCodingKey.self)
+
+        var metrics: [DiscoveredMetric] = []
+        var limits: [String: UsageLimitResponse] = [:]
+
+        for key in container.allKeys {
+            let k = key.stringValue
+            guard k == "five_hour" || k.hasPrefix("seven_day") else { continue }
+
+            // Decode the value; skip nulls and objects that don't match UsageLimitResponse
+            guard let response = try? container.decodeIfPresent(UsageLimitResponse.self, forKey: key) else { continue }
+
+            let metric = DiscoveredMetric(key: k, displayName: DiscoveredMetric.displayName(for: k))
+            metrics.append(metric)
+            limits[k] = response
+        }
+
+        self.discoveredMetrics = DiscoveredMetric.sorted(metrics)
+        self.metricLimits = limits
+    }
+
     func toDomain() throws -> UsageData {
-        // Configure ISO8601 formatter with proper options
-        let iso8601Formatter = ISO8601DateFormatter()
-        iso8601Formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
-        // Parse reset dates (must be present and valid)
-        let sessionResetDate: Date
-        let weeklyResetDate: Date
-
-        guard let sessionResetString = fiveHour.resetsAt,
-              let parsedDate = iso8601Formatter.date(from: sessionResetString) else {
-            throw MappingError.missingCriticalField(field: "fiveHour.resetsAt")
+        guard let sessionResponse = metricLimits["five_hour"],
+              let sessionResetStr = sessionResponse.resetsAt,
+              let sessionResetDate = formatter.date(from: sessionResetStr) else {
+            throw MappingError.missingCriticalField(field: "five_hour.resets_at")
         }
-        sessionResetDate = parsedDate
 
-        guard let weeklyResetString = sevenDay.resetsAt,
-              let parsedDate = iso8601Formatter.date(from: weeklyResetString) else {
-            throw MappingError.missingCriticalField(field: "sevenDay.resetsAt")
+        guard let weeklyResponse = metricLimits["seven_day"],
+              let weeklyResetStr = weeklyResponse.resetsAt,
+              let weeklyResetDate = formatter.date(from: weeklyResetStr) else {
+            throw MappingError.missingCriticalField(field: "seven_day.resets_at")
         }
-        weeklyResetDate = parsedDate
 
-        // Handle optional sonnet usage
-        let sonnetLimit: UsageLimit? = sevenDaySonnet.flatMap { sonnet in
-            let sonnetResetDate: Date
-
-            if let sonnetResetString = sonnet.resetsAt,
-               let parsedDate = iso8601Formatter.date(from: sonnetResetString) {
-                sonnetResetDate = parsedDate
+        var metricValues: [String: UsageLimit] = [:]
+        for (key, response) in metricLimits {
+            let resetDate: Date
+            if let s = response.resetsAt, let d = formatter.date(from: s) {
+                resetDate = d
             } else {
-                // Default to 7 days in the future if no reset date
-                sonnetResetDate = Date().addingTimeInterval(7 * 24 * 3600)
+                resetDate = Date().addingTimeInterval(7 * 24 * 3600)
             }
-
-            return UsageLimit(
-                utilization: sonnet.utilization,
-                resetAt: sonnetResetDate
-            )
+            metricValues[key] = UsageLimit(utilization: response.utilization, resetAt: resetDate)
         }
 
         return UsageData(
-            sessionUsage: UsageLimit(
-                utilization: fiveHour.utilization,
-                resetAt: sessionResetDate
-            ),
-            weeklyUsage: UsageLimit(
-                utilization: sevenDay.utilization,
-                resetAt: weeklyResetDate
-            ),
-            sonnetUsage: sonnetLimit,
+            sessionUsage: UsageLimit(utilization: sessionResponse.utilization, resetAt: sessionResetDate),
+            weeklyUsage:  UsageLimit(utilization: weeklyResponse.utilization,  resetAt: weeklyResetDate),
+            discoveredMetrics: discoveredMetrics,
+            metricValues: metricValues,
             lastUpdated: Date()
         )
     }

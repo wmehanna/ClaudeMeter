@@ -1,10 +1,3 @@
-//
-//  UsagePopoverView.swift
-//  ClaudeMeter
-//
-//  Created by Edd on 2025-11-14.
-//
-
 import SwiftUI
 import AppKit
 
@@ -24,16 +17,11 @@ struct UsagePopoverView: View {
 
                 Spacer()
 
-                // Refresh button
                 Button(action: {
-                    Task {
-                        await appModel.refreshUsage(forceRefresh: true)
-                    }
+                    Task { await appModel.refreshUsage(forceRefresh: true) }
                 }) {
                     if appModel.isRefreshing {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                            .frame(width: 20, height: 20)
+                        ProgressView().scaleEffect(0.7).frame(width: 20, height: 20)
                     } else {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -51,30 +39,19 @@ struct UsagePopoverView: View {
             if let errorMessage = appModel.errorMessage {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.orange)
-                        Text(errorMessage)
-                            .font(.callout)
-                            .foregroundColor(.primary)
-
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange)
+                        Text(errorMessage).font(.callout).foregroundColor(.primary)
                         Spacer()
                     }
-
                     HStack(spacing: 8) {
-                        // Retry button for recoverable errors
                         Button("Retry") {
-                            Task {
-                                await appModel.refreshUsage(forceRefresh: true)
-                            }
+                            Task { await appModel.refreshUsage(forceRefresh: true) }
                         }
                         .buttonStyle(.bordered)
 
-                        // Update Key button for authentication errors
                         if errorMessage.contains("invalid") || errorMessage.contains("expired") || errorMessage.contains("authentication") {
-                            Button("Update Session Key") {
-                                openSettingsFront()
-                            }
-                            .buttonStyle(.borderedProminent)
+                            Button("Update Session Key") { openSettingsFront() }
+                                .buttonStyle(.borderedProminent)
                         }
                     }
                 }
@@ -86,38 +63,30 @@ struct UsagePopoverView: View {
 
             // Content
             if let usageData = appModel.usageData {
-                ScrollView {
-                    VStack(spacing: 16) {
-                        // Session usage card
-                        UsageCardView(
-                            title: "5-Hour Session",
-                            usageLimit: usageData.sessionUsage,
-                            icon: "gauge.with.dots.needle.67percent",
-                            windowDuration: Constants.Pacing.sessionWindow
-                        )
+                VStack(spacing: 16) {
+                    // Session is always shown
+                    UsageCardView(
+                        title: "5-Hour Session",
+                        usageLimit: usageData.sessionUsage,
+                        icon: "gauge.with.dots.needle.67percent",
+                        windowDuration: Constants.Pacing.sessionWindow
+                    )
 
-                        // Weekly usage card
-                        UsageCardView(
-                            title: "Weekly Usage",
-                            usageLimit: usageData.weeklyUsage,
-                            icon: "calendar",
-                            windowDuration: Constants.Pacing.weeklyWindow
-                        )
-
-                        // Sonnet usage card (conditional rendering)
-                        if appModel.settings.isSonnetUsageShown, let sonnetUsage = usageData.sonnetUsage {
+                    // All other discovered metrics, filtered by popoverHiddenKeys
+                    ForEach(usageData.discoveredMetrics.filter { !$0.isSession }) { metric in
+                        if appModel.settings.isPopoverVisible(key: metric.key),
+                           let limit = usageData.metricValues[metric.key] {
                             UsageCardView(
-                                title: "Weekly Sonnet",
-                                usageLimit: sonnetUsage,
-                                icon: "sparkles",
+                                title: metric.displayName,
+                                usageLimit: limit,
+                                icon: popoverIcon(forKey: metric.key),
                                 windowDuration: Constants.Pacing.weeklyWindow
                             )
                         }
                     }
-                    .padding()
                 }
+                .padding()
             } else {
-                // Loading state
                 VStack(spacing: 16) {
                     ProgressView()
                     Text("Loading usage data...")
@@ -130,30 +99,37 @@ struct UsagePopoverView: View {
 
             Divider()
 
-            // Footer with settings button
+            // Footer
             HStack {
-                Button("Settings") {
-                    openSettingsFront()
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(",", modifiers: .command)
-                .accessibilityLabel("Open settings window")
+                Button("Settings") { openSettingsFront() }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(",", modifiers: .command)
+                    .accessibilityLabel("Open settings window")
 
                 Spacer()
 
-                Button("Quit") {
-                    NSApplication.shared.terminate(nil)
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut("q", modifiers: .command)
-                .accessibilityLabel("Quit application")
+                Button("Quit") { NSApplication.shared.terminate(nil) }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut("q", modifiers: .command)
+                    .accessibilityLabel("Quit application")
             }
             .padding()
         }
-        .frame(width: 320, height: 460)
+        .frame(width: 320)
         .background(Color(nsColor: .windowBackgroundColor))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Usage Dashboard")
+    }
+
+    private func popoverIcon(forKey key: String) -> String {
+        switch key {
+        case "seven_day":          return "calendar"
+        case "seven_day_sonnet":   return "sparkles"
+        case "seven_day_omelette": return "paintpalette"
+        case "seven_day_opus":     return "brain"
+        case "seven_day_cowork":   return "person.2"
+        default:                   return "chart.bar"
+        }
     }
 
     private func openSettingsFront() {

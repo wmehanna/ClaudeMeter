@@ -1,10 +1,3 @@
-//
-//  MenuBarManager.swift
-//  ClaudeMeter
-//
-//  Created by Edd on 2026-01-14.
-//
-
 import AppKit
 import Observation
 import SwiftUI
@@ -35,8 +28,6 @@ final class MenuBarManager {
     }
 
     #if DEBUG
-    /// Starts the menu bar without calling bootstrap.
-    /// Used in demo mode when state is pre-configured.
     func startWithoutBootstrap() {
         setupStatusItem()
         createPopover()
@@ -99,6 +90,11 @@ final class MenuBarManager {
             _ = appModel.usageData
             _ = appModel.isLoading
             _ = appModel.settings.iconStyle
+            _ = appModel.settings.customPillsFontSize
+            _ = appModel.settings.singleMetricKey
+            _ = appModel.settings.customPillsKeys
+            _ = appModel.settings.customBarKeys
+            _ = appModel.settings.dualBarKeys
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -111,50 +107,47 @@ final class MenuBarManager {
     private func updateIcon() {
         guard let button = statusItem?.button else { return }
 
-        let percentage = clamped(appModel.usageData?.sessionUsage.percentage ?? 0)
-        let weeklyPercentage = clamped(appModel.usageData?.weeklyUsage.percentage ?? 0)
-        let status = appModel.usageData?.primaryStatus ?? .safe
-        let isStale = appModel.usageData?.isStale ?? false
-        let isLoading = appModel.isLoading
-        let style = appModel.settings.iconStyle
+        let usageData    = appModel.usageData
+        let metricValues = usageData?.metricValues.mapValues { $0.percentage } ?? [:]
+        let status       = usageData?.primaryStatus ?? .safe
+        let isStale      = usageData?.isStale ?? false
+        let isLoading    = appModel.isLoading
+        let style        = appModel.settings.iconStyle
+        let fontSize     = appModel.settings.customPillsFontSize
+        let singleKey    = appModel.settings.singleMetricKey
 
-        if let cachedImage = iconCache.get(
-            percentage: percentage,
-            status: status,
-            isLoading: isLoading,
-            isStale: isStale,
-            iconStyle: style,
-            weeklyPercentage: weeklyPercentage
+        let available    = usageData?.discoveredMetrics ?? DiscoveredMetric.defaults
+
+        func resolve(_ keys: [String]) -> [DiscoveredMetric] {
+            keys.compactMap { k in available.first { $0.key == k } }
+        }
+
+        let pillsMetrics = resolve(appModel.settings.customPillsKeys)
+        let barMetrics   = resolve(appModel.settings.customBarKeys)
+        let dualMetrics  = resolve(appModel.settings.dualBarKeys)
+
+        if let cached = iconCache.get(
+            metricValues: metricValues, status: status, isLoading: isLoading, isStale: isStale,
+            iconStyle: style, fontSize: fontSize, singleMetricKey: singleKey,
+            customPillsMetrics: pillsMetrics, customBarMetrics: barMetrics, dualBarMetrics: dualMetrics
         ) {
-            button.image = cachedImage
+            button.image = cached
             return
         }
 
         let image = iconRenderer.render(
-            percentage: percentage,
-            status: status,
-            isLoading: isLoading,
-            isStale: isStale,
-            iconStyle: style,
-            weeklyPercentage: weeklyPercentage
+            metricValues: metricValues, status: status, isLoading: isLoading, isStale: isStale,
+            iconStyle: style, fontSize: fontSize, singleMetricKey: singleKey,
+            customPillsMetrics: pillsMetrics, customBarMetrics: barMetrics, dualBarMetrics: dualMetrics
         )
 
         iconCache.set(
-            image,
-            percentage: percentage,
-            status: status,
-            isLoading: isLoading,
-            isStale: isStale,
-            iconStyle: style,
-            weeklyPercentage: weeklyPercentage
+            image, metricValues: metricValues, status: status, isLoading: isLoading, isStale: isStale,
+            iconStyle: style, fontSize: fontSize, singleMetricKey: singleKey,
+            customPillsMetrics: pillsMetrics, customBarMetrics: barMetrics, dualBarMetrics: dualMetrics
         )
 
         button.image = image
-    }
-
-
-    private func clamped(_ value: Double) -> Double {
-        max(0, min(value, 100))
     }
 
     // MARK: - Popover Control

@@ -1,61 +1,67 @@
-//
-//  MenuBarIconView.swift
-//  ClaudeMeter
-//
-//  Created by Edd on 2025-11-14.
-//
-
 import SwiftUI
 
 /// SwiftUI view for menu bar icon with configurable style
 struct MenuBarIconView: View {
-    let percentage: Double
+    let metricValues: [String: Double]
     let status: UsageStatus
     let isLoading: Bool
     let isStale: Bool
     let iconStyle: IconStyle
-    var weeklyPercentage: Double = 0  // Optional, used by dualBar style
+    var fontSize: Double = 12
+    var singleMetricKey: String = "five_hour"
+    var customPillsMetrics: [DiscoveredMetric] = DiscoveredMetric.defaults
+    var customBarMetrics: [DiscoveredMetric] = DiscoveredMetric.defaults
+    var dualBarMetrics: [DiscoveredMetric] = Array(DiscoveredMetric.defaults.prefix(2))
+
+    private var singleValue: Double { metricValues[singleMetricKey] ?? 0 }
+
+    private var singleStatus: UsageStatus {
+        let pct = singleValue
+        switch pct {
+        case 0..<Constants.Thresholds.Status.warningStart:
+            return .safe
+        case Constants.Thresholds.Status.warningStart..<Constants.Thresholds.Status.criticalStart:
+            return .warning
+        default:
+            return .critical
+        }
+    }
 
     var body: some View {
         switch iconStyle {
         case .battery:
-            BatteryIcon(percentage: percentage, status: status, isLoading: isLoading, isStale: isStale)
+            BatteryIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
         case .circular:
-            CircularGaugeIcon(percentage: percentage, status: status, isLoading: isLoading, isStale: isStale)
+            CircularGaugeIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
         case .minimal:
-            MinimalIcon(percentage: percentage, status: status, isLoading: isLoading, isStale: isStale)
+            MinimalIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
         case .segments:
-            SegmentedBarIcon(percentage: percentage, status: status, isLoading: isLoading, isStale: isStale)
+            SegmentedBarIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
         case .dualBar:
-            DualBarIcon(percentage: percentage, weeklyPercentage: weeklyPercentage, status: status, isLoading: isLoading, isStale: isStale)
+            DualBarIcon(metrics: dualBarMetrics, metricValues: metricValues,
+                        status: status, isLoading: isLoading, isStale: isStale)
+        case .customBar:
+            CustomBarIcon(metrics: customBarMetrics, metricValues: metricValues,
+                          status: status, isLoading: isLoading, isStale: isStale)
+        case .customPills:
+            CustomPillsIcon(metrics: customPillsMetrics, metricValues: metricValues,
+                            status: status, isLoading: isLoading, isStale: isStale, fontSize: fontSize)
         case .gauge:
-            GaugeIcon(percentage: percentage, status: status, isLoading: isLoading, isStale: isStale)
+            GaugeIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
         }
     }
 }
 
-// MARK: - Preview
-
 #Preview("All Styles") {
+    let values: [String: Double] = ["five_hour": 65, "seven_day": 45, "seven_day_sonnet": 77, "seven_day_omelette": 12]
     VStack(alignment: .leading, spacing: 12) {
         ForEach(IconStyle.allCases) { style in
             HStack {
-                Text(style.displayName)
-                    .frame(width: 80, alignment: .leading)
-                MenuBarIconView(percentage: 65, status: .warning, isLoading: false, isStale: false, iconStyle: style, weeklyPercentage: 45)
+                Text(style.displayName).frame(width: 100, alignment: .leading)
+                MenuBarIconView(metricValues: values, status: .warning, isLoading: false, isStale: false,
+                                iconStyle: style)
             }
         }
-    }
-    .padding()
-}
-
-#Preview("Battery States") {
-    VStack(spacing: 20) {
-        MenuBarIconView(percentage: 35, status: .safe, isLoading: false, isStale: false, iconStyle: .battery)
-        MenuBarIconView(percentage: 65, status: .warning, isLoading: false, isStale: false, iconStyle: .battery)
-        MenuBarIconView(percentage: 92, status: .critical, isLoading: false, isStale: false, iconStyle: .battery)
-        MenuBarIconView(percentage: 45, status: .safe, isLoading: true, isStale: false, iconStyle: .battery)
-        MenuBarIconView(percentage: 45, status: .safe, isLoading: false, isStale: true, iconStyle: .battery)
     }
     .padding()
 }

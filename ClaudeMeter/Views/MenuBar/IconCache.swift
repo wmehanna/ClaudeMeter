@@ -1,70 +1,36 @@
-//
-//  IconCache.swift
-//  ClaudeMeter
-//
-//  Created by Edd on 2026-01-09.
-//
-
 import AppKit
 
-/// Simple in-memory cache for rendered menu bar icons.
 final class IconCache {
     private let cache = NSCache<NSString, NSImage>()
 
-    init() {
-        cache.countLimit = Constants.Cache.maxIconCacheSize
+    init() { cache.countLimit = Constants.Cache.maxIconCacheSize }
+
+    func get(metricValues: [String: Double], status: UsageStatus, isLoading: Bool, isStale: Bool,
+             iconStyle: IconStyle, fontSize: Double = 12, singleMetricKey: String = "five_hour",
+             customPillsMetrics: [DiscoveredMetric] = [], customBarMetrics: [DiscoveredMetric] = [],
+             dualBarMetrics: [DiscoveredMetric] = []) -> NSImage? {
+        cache.object(forKey: cacheKey(metricValues, status, isLoading, isStale, iconStyle,
+                                     fontSize, singleMetricKey,
+                                     customPillsMetrics, customBarMetrics, dualBarMetrics))
     }
 
-    func get(
-        percentage: Double,
-        status: UsageStatus,
-        isLoading: Bool,
-        isStale: Bool,
-        iconStyle: IconStyle,
-        weeklyPercentage: Double
-    ) -> NSImage? {
-        cache.object(forKey: cacheKey(
-            percentage: percentage,
-            status: status,
-            isLoading: isLoading,
-            isStale: isStale,
-            iconStyle: iconStyle,
-            weeklyPercentage: weeklyPercentage
-        ))
+    func set(_ image: NSImage, metricValues: [String: Double], status: UsageStatus, isLoading: Bool,
+             isStale: Bool, iconStyle: IconStyle, fontSize: Double = 12,
+             singleMetricKey: String = "five_hour", customPillsMetrics: [DiscoveredMetric] = [],
+             customBarMetrics: [DiscoveredMetric] = [], dualBarMetrics: [DiscoveredMetric] = []) {
+        cache.setObject(image, forKey: cacheKey(metricValues, status, isLoading, isStale, iconStyle,
+                                                fontSize, singleMetricKey,
+                                                customPillsMetrics, customBarMetrics, dualBarMetrics))
     }
 
-    func set(
-        _ image: NSImage,
-        percentage: Double,
-        status: UsageStatus,
-        isLoading: Bool,
-        isStale: Bool,
-        iconStyle: IconStyle,
-        weeklyPercentage: Double
-    ) {
-        cache.setObject(
-            image,
-            forKey: cacheKey(
-                percentage: percentage,
-                status: status,
-                isLoading: isLoading,
-                isStale: isStale,
-                iconStyle: iconStyle,
-                weeklyPercentage: weeklyPercentage
-            )
-        )
-    }
-
-    private func cacheKey(
-        percentage: Double,
-        status: UsageStatus,
-        isLoading: Bool,
-        isStale: Bool,
-        iconStyle: IconStyle,
-        weeklyPercentage: Double
-    ) -> NSString {
-        let percent = String(format: "%.2f", percentage)
-        let weekly = String(format: "%.2f", weeklyPercentage)
-        return "\(percent)|\(weekly)|\(status.rawValue)|\(isLoading)|\(isStale)|\(iconStyle.rawValue)" as NSString
+    private func cacheKey(_ mv: [String: Double], _ s: UsageStatus, _ l: Bool, _ st: Bool,
+                          _ i: IconStyle, _ fs: Double, _ sm: String,
+                          _ pm: [DiscoveredMetric], _ bm: [DiscoveredMetric],
+                          _ dm: [DiscoveredMetric]) -> NSString {
+        let values = mv.sorted { $0.key < $1.key }
+            .map { "\($0.key):\(String(format: "%.2f", $0.value))" }
+            .joined(separator: ",")
+        let metricKeys = "\(sm)|\(pm.map(\.key).joined(separator:","))|\(bm.map(\.key).joined(separator:","))|\(dm.map(\.key).joined(separator:","))"
+        return "\(values)|\(String(format: "%.1f", fs))|\(s.rawValue)|\(l)|\(st)|\(i.rawValue)|\(metricKeys)" as NSString
     }
 }

@@ -35,7 +35,9 @@ struct SettingsView: View {
             aboutTab
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 500)
+        .frame(minWidth: 460, maxWidth: .infinity,
+               minHeight: min(620, (NSScreen.main?.visibleFrame.height ?? 700) * 0.8),
+               maxHeight: .infinity)
         .onAppear {
             loadSettings()
         }
@@ -55,24 +57,27 @@ struct SettingsView: View {
     // MARK: - General Tab
 
     private var generalTab: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if !appModel.isReady {
-                VStack {
-                    Spacer()
-                    ProgressView("Loading settings...")
-                        .controlSize(.large)
-                    Spacer()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if !appModel.isReady {
+                    VStack {
+                        Spacer()
+                        ProgressView("Loading settings...")
+                            .controlSize(.large)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 200)
+                } else {
+                    sessionKeySection
+                    refreshIntervalSection
+                    popoverVisibilitySection
+                    iconStyleSection
+                    launchAtLoginSection
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                sessionKeySection
-                refreshIntervalSection
-                sonnetUsageSection
-                iconStyleSection
-                launchAtLoginSection
             }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(24)
     }
 
     // MARK: - Session Key Section
@@ -169,22 +174,36 @@ struct SettingsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    // MARK: - Sonnet Usage Section
+    // MARK: - Popover Visibility Section
 
-    private var sonnetUsageSection: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Show Sonnet Usage")
-                    .font(.subheadline)
-                Text("Display weekly Sonnet usage in the menu bar popover")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    private var popoverVisibilitySection: some View {
+        let metrics = (appModel.usageData?.discoveredMetrics ?? DiscoveredMetric.defaults)
+            .filter { !$0.isSession }
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Popover Metrics")
+                .font(.subheadline)
+            Text("Choose which metrics appear in the usage popover")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ForEach(metrics) { metric in
+                HStack {
+                    Text(metric.displayName).font(.callout)
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { appModel.settings.isPopoverVisible(key: metric.key) },
+                        set: { shown in
+                            if shown {
+                                appModel.settings.popoverHiddenKeys.removeAll { $0 == metric.key }
+                            } else if !appModel.settings.popoverHiddenKeys.contains(metric.key) {
+                                appModel.settings.popoverHiddenKeys.append(metric.key)
+                            }
+                        }
+                    ))
+                    .labelsHidden()
+                }
             }
-
-            Spacer()
-
-            Toggle("", isOn: $appModel.settings.isSonnetUsageShown)
-                .labelsHidden()
         }
         .padding()
         .background(.quaternary.opacity(0.3))
@@ -194,7 +213,8 @@ struct SettingsView: View {
     // MARK: - Icon Style Section
 
     private var iconStyleSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let available = appModel.usageData?.discoveredMetrics ?? DiscoveredMetric.defaults
+        return VStack(alignment: .leading, spacing: 12) {
             Text("Menu Bar Icon Style")
                 .font(.subheadline)
 
@@ -203,6 +223,67 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
 
             IconStylePicker(selection: $appModel.settings.iconStyle)
+
+            if [IconStyle.battery, .circular, .minimal, .segments, .gauge].contains(appModel.settings.iconStyle) {
+                Divider()
+                MetricPickerRow(
+                    label: "Metric",
+                    caption: "Which usage to display",
+                    available: available,
+                    selectedKeys: singleMetricBinding,
+                    maxCount: 1
+                )
+            }
+
+            if appModel.settings.iconStyle == .customPills {
+                Divider()
+                MetricPickerRow(
+                    label: "Metrics",
+                    caption: "Select up to 4 (left to right order)",
+                    available: available,
+                    selectedKeys: $appModel.settings.customPillsKeys,
+                    maxCount: 4
+                )
+                Divider()
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Font Size")
+                            .font(.subheadline)
+                        Text("Percentage text size in the menu bar")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    HStack(spacing: 8) {
+                        Slider(value: $appModel.settings.customPillsFontSize, in: 9...18, step: 1)
+                            .frame(width: 120)
+                        Text("\(Int(appModel.settings.customPillsFontSize))pt")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 32, alignment: .trailing)
+                    }
+                }
+            }
+            if appModel.settings.iconStyle == .customBar {
+                Divider()
+                MetricPickerRow(
+                    label: "Metrics",
+                    caption: "Select up to 3 (top to bottom order)",
+                    available: available,
+                    selectedKeys: $appModel.settings.customBarKeys,
+                    maxCount: 3
+                )
+            }
+            if appModel.settings.iconStyle == .dualBar {
+                Divider()
+                MetricPickerRow(
+                    label: "Metrics",
+                    caption: "Select up to 2 (top to bottom order)",
+                    available: available,
+                    selectedKeys: $appModel.settings.dualBarKeys,
+                    maxCount: 2
+                )
+            }
         }
         .padding()
         .background(.quaternary.opacity(0.3))
@@ -234,19 +315,22 @@ struct SettingsView: View {
     // MARK: - Notifications Tab
 
     private var notificationsTab: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            enableNotificationsSection
-            thresholdsSection
-                .opacity(appModel.settings.hasNotificationsEnabled ? 1 : 0.5)
-                .allowsHitTesting(appModel.settings.hasNotificationsEnabled)
-            resetNotificationSection
-                .opacity(appModel.settings.hasNotificationsEnabled ? 1 : 0.5)
-                .allowsHitTesting(appModel.settings.hasNotificationsEnabled)
-            testNotificationSection
-                .opacity(appModel.settings.hasNotificationsEnabled ? 1 : 0.5)
-                .allowsHitTesting(appModel.settings.hasNotificationsEnabled)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                enableNotificationsSection
+                thresholdsSection
+                    .opacity(appModel.settings.hasNotificationsEnabled ? 1 : 0.5)
+                    .allowsHitTesting(appModel.settings.hasNotificationsEnabled)
+                resetNotificationSection
+                    .opacity(appModel.settings.hasNotificationsEnabled ? 1 : 0.5)
+                    .allowsHitTesting(appModel.settings.hasNotificationsEnabled)
+                testNotificationSection
+                    .opacity(appModel.settings.hasNotificationsEnabled ? 1 : 0.5)
+                    .allowsHitTesting(appModel.settings.hasNotificationsEnabled)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(24)
     }
 
     private var enableNotificationsSection: some View {
@@ -396,6 +480,13 @@ struct SettingsView: View {
     }
 
     // MARK: - Bindings
+
+    private var singleMetricBinding: Binding<[String]> {
+        Binding(
+            get: { [appModel.settings.singleMetricKey] },
+            set: { if let k = $0.first { appModel.settings.singleMetricKey = k } }
+        )
+    }
 
     private var warningThresholdBinding: Binding<Double> {
         Binding(

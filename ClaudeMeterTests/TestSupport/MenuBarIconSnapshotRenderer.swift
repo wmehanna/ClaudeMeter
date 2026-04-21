@@ -1,10 +1,3 @@
-//
-//  MenuBarIconSnapshotRenderer.swift
-//  ClaudeMeterTests
-//
-//  Created by Edd on 2026-01-09.
-//
-
 import AppKit
 import SwiftUI
 @testable import ClaudeMeter
@@ -19,13 +12,16 @@ enum MenuBarIconSnapshotRenderer {
         isStale: Bool,
         iconStyle: IconStyle
     ) -> NSImage {
+        let metricValues: [String: Double] = [
+            "five_hour": percentage,
+            "seven_day": weeklyPercentage,
+        ]
         let view = MenuBarIconView(
-            percentage: percentage,
+            metricValues: metricValues,
             status: status,
             isLoading: isLoading,
             isStale: isStale,
-            iconStyle: iconStyle,
-            weeklyPercentage: weeklyPercentage
+            iconStyle: iconStyle
         )
         .fixedSize()
 

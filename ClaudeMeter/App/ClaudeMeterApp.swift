@@ -30,6 +30,6 @@ struct ClaudeMeterApp: App {
         Settings {
             SettingsView(appModel: appModel)
         }
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)
     }
 }

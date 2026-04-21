@@ -1,26 +1,23 @@
-//
-//  MenuBarIconRendererTests.swift
-//  ClaudeMeterTests
-//
-//  Created by Edd on 2026-01-09.
-//
-
 import XCTest
 @testable import ClaudeMeter
 
 @MainActor
 final class MenuBarIconRendererTests: XCTestCase {
+    private let testValues: [String: Double] = [
+        "five_hour": TestConstants.sessionPercentage,
+        "seven_day": TestConstants.weeklyPercentage,
+    ]
+
     func test_menuBarIconRendersForAllStyles() {
         let renderer = MenuBarIconRenderer()
 
         for style in IconStyle.allCases {
             let image = renderer.render(
-                percentage: TestConstants.sessionPercentage,
+                metricValues: testValues,
                 status: .safe,
                 isLoading: false,
                 isStale: false,
-                iconStyle: style,
-                weeklyPercentage: TestConstants.weeklyPercentage
+                iconStyle: style
             )
 
             XCTAssertGreaterThan(image.size.width, 0)
@@ -32,21 +29,19 @@ final class MenuBarIconRendererTests: XCTestCase {
         let renderer = MenuBarIconRenderer()
 
         let loadingImage = renderer.render(
-            percentage: TestConstants.sessionPercentage,
+            metricValues: testValues,
             status: .safe,
             isLoading: true,
             isStale: false,
-            iconStyle: .battery,
-            weeklyPercentage: TestConstants.weeklyPercentage
+            iconStyle: .battery
         )
 
         let staleImage = renderer.render(
-            percentage: TestConstants.sessionPercentage,
+            metricValues: testValues,
             status: .safe,
             isLoading: false,
             isStale: true,
-            iconStyle: .battery,
-            weeklyPercentage: TestConstants.weeklyPercentage
+            iconStyle: .battery
         )
 
         XCTAssertGreaterThan(loadingImage.size.width, 0)
@@ -59,12 +54,11 @@ final class MenuBarIconRendererTests: XCTestCase {
         let renderer = MenuBarIconRenderer()
 
         let image = renderer.render(
-            percentage: TestConstants.sessionPercentage,
+            metricValues: testValues,
             status: .safe,
             isLoading: false,
             isStale: false,
-            iconStyle: .battery,
-            weeklyPercentage: TestConstants.weeklyPercentage
+            iconStyle: .battery
         )
 
         XCTAssertFalse(image.isTemplate)

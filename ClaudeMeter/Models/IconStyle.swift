@@ -13,7 +13,9 @@ enum IconStyle: String, Codable, CaseIterable, Identifiable, Sendable {
     case circular       // Donut gauge with percentage in center
     case minimal        // Just color-coded percentage text
     case segments       // 5 segments like signal bars
-    case dualBar        // Two stacked bars: session + weekly
+    case dualBar        // Two stacked bars (customizable metrics)
+    case customBar      // Up to 3 stacked bars (customizable metrics)
+    case customPills    // Up to 3 inline percentages (customizable metrics)
     case gauge          // SF Symbol gauge icon
 
     var id: String { rawValue }
@@ -25,8 +27,10 @@ enum IconStyle: String, Codable, CaseIterable, Identifiable, Sendable {
         case .circular: return "Circular"
         case .minimal: return "Minimal"
         case .segments: return "Segments"
-        case .dualBar: return "Dual Bar"
-        case .gauge: return "Gauge"
+        case .dualBar:     return "Dual Bar"
+        case .customBar:   return "Custom Bar"
+        case .customPills: return "Custom Pills"
+        case .gauge:       return "Gauge"
         }
     }
 
@@ -37,8 +41,10 @@ enum IconStyle: String, Codable, CaseIterable, Identifiable, Sendable {
         case .circular: return "Circular gauge with percentage in center"
         case .minimal: return "Minimal percentage only"
         case .segments: return "Segmented bar indicator"
-        case .dualBar: return "Two bars showing session and weekly usage"
-        case .gauge: return "Gauge indicator"
+        case .dualBar:     return "Two stacked bars with customizable metrics"
+        case .customBar:   return "Up to three stacked bars with customizable metrics"
+        case .customPills: return "Up to three inline percentages with customizable metrics"
+        case .gauge:       return "Gauge indicator"
         }
     }
 }

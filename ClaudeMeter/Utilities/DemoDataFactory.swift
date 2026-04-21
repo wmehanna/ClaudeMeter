@@ -57,7 +57,7 @@ enum DemoDataFactory {
                 errorMessage: nil,
                 isLoading: false
             )
-            appModel.settings.isSonnetUsageShown = true
+            appModel.settings.popoverHiddenKeys.removeAll { $0 == "seven_day_sonnet" }
 
         case .loading:
             appModel.applyDemoState(
@@ -91,23 +91,31 @@ enum DemoDataFactory {
         weeklyPercentage: Double,
         sonnetPercentage: Double? = nil
     ) -> UsageData {
-        let sessionResetAt = Date().addingTimeInterval(3 * 3600) // 3 hours from now
-        let weeklyResetAt = Date().addingTimeInterval(4 * 24 * 3600) // 4 days from now
+        let sessionResetAt = Date().addingTimeInterval(3 * 3600)
+        let weeklyResetAt  = Date().addingTimeInterval(4 * 24 * 3600)
 
-        let sessionUsage = UsageLimit(utilization: sessionPercentage, resetAt: sessionResetAt)
-        let weeklyUsage = UsageLimit(utilization: weeklyPercentage, resetAt: weeklyResetAt)
+        let sessionLimit = UsageLimit(utilization: sessionPercentage / 100, resetAt: sessionResetAt)
+        let weeklyLimit  = UsageLimit(utilization: weeklyPercentage / 100,  resetAt: weeklyResetAt)
 
-        let sonnetUsage: UsageLimit?
-        if let sonnetPercentage {
-            sonnetUsage = UsageLimit(utilization: sonnetPercentage, resetAt: weeklyResetAt)
-        } else {
-            sonnetUsage = nil
+        var metricValues: [String: UsageLimit] = [
+            "five_hour": sessionLimit,
+            "seven_day": weeklyLimit,
+        ]
+        var metrics = DiscoveredMetric.defaults.filter { ["five_hour", "seven_day"].contains($0.key) }
+
+        if let pct = sonnetPercentage {
+            let limit = UsageLimit(utilization: pct / 100, resetAt: weeklyResetAt)
+            metricValues["seven_day_sonnet"] = limit
+            if let m = DiscoveredMetric.defaults.first(where: { $0.key == "seven_day_sonnet" }) {
+                metrics.append(m)
+            }
         }
 
         return UsageData(
-            sessionUsage: sessionUsage,
-            weeklyUsage: weeklyUsage,
-            sonnetUsage: sonnetUsage,
+            sessionUsage: sessionLimit,
+            weeklyUsage: weeklyLimit,
+            discoveredMetrics: DiscoveredMetric.sorted(metrics),
+            metricValues: metricValues,
             lastUpdated: Date()
         )
     }

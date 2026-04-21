@@ -26,7 +26,6 @@ actor KeychainRepository: KeychainRepositoryProtocol {
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
             kSecAttrSynchronizable as String: kCFBooleanFalse as Any,
-            kSecAttrAccessGroup as String: accessGroup,
         ]
 
         let status = SecItemAdd(query as CFDictionary, nil)
@@ -47,7 +46,6 @@ actor KeychainRepository: KeychainRepositoryProtocol {
             kSecAttrService as String: serviceName,
             kSecReturnData as String: kCFBooleanTrue as Any,
             kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecAttrAccessGroup as String: accessGroup,
         ]
 
         var item: CFTypeRef?
@@ -72,7 +70,6 @@ actor KeychainRepository: KeychainRepositoryProtocol {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: account,
             kSecAttrService as String: serviceName,
-            kSecAttrAccessGroup as String: accessGroup,
         ]
 
         let attributes: [String: Any] = [
@@ -92,7 +89,6 @@ actor KeychainRepository: KeychainRepositoryProtocol {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: account,
             kSecAttrService as String: serviceName,
-            kSecAttrAccessGroup as String: accessGroup,
         ]
 
         let status = SecItemDelete(query as CFDictionary)
@@ -109,7 +105,6 @@ actor KeychainRepository: KeychainRepositoryProtocol {
             kSecAttrAccount as String: account,
             kSecAttrService as String: serviceName,
             kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecAttrAccessGroup as String: accessGroup,
         ]
 
         let status = SecItemCopyMatching(query as CFDictionary, nil)
