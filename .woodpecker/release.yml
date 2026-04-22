@@ -52,20 +52,19 @@ steps:
         set -euo pipefail
         mkdir -p build
 
-        # Resolve version: tag → pbxproj MARKETING_VERSION + pipeline number
-        if [ -n "${CI_COMMIT_TAG:-}" ]; then
-          VERSION="${CI_COMMIT_TAG#v}"
+        # Write version to file immediately using only CI variables (no ${SHELL_VAR} — Woodpecker
+        # substitutes all ${...} patterns before the shell runs, wiping non-CI vars to empty)
+        if [ -n "$CI_COMMIT_TAG" ]; then
+          printf '%s' "$CI_COMMIT_TAG" | sed 's/^v//' > /tmp/.ci_version
         else
-          MARKETING=$(grep -m1 'MARKETING_VERSION' ClaudeMeter.xcodeproj/project.pbxproj \
+          _M=$(grep -m1 'MARKETING_VERSION' ClaudeMeter.xcodeproj/project.pbxproj \
             | awk -F'= ' '{print $2}' | tr -d '; ')
-          VERSION="${MARKETING:-0.0}-build.${CI_PIPELINE_NUMBER}"
+          printf '%s' "${_M:-0.0}-build.$CI_PIPELINE_NUMBER" > /tmp/.ci_version
         fi
 
-        # Persist VERSION before the archive pipe (pipe can shadow shell vars on some macOS shells)
-        printf '%s' "$VERSION" > /tmp/.ci_version
-        echo "→ Building version $VERSION..."
+        echo "→ Building version $(cat /tmp/.ci_version)..."
 
-        # Archive (universal arm64 + x86_64)
+        # Archive (universal arm64 + x86_64) — capture output to avoid pipefail on grep
         ARCHIVE_LOG=$(xcodebuild archive \
           -project ClaudeMeter.xcodeproj \
           -scheme ClaudeMeter \
@@ -80,30 +79,28 @@ steps:
         echo "$ARCHIVE_LOG" | grep -E "error:|ARCHIVE SUCCEEDED|ARCHIVE FAILED" || true
         echo "$ARCHIVE_LOG" | grep -q "ARCHIVE SUCCEEDED" || { echo "✗ Archive failed"; exit 1; }
 
-        # Re-read VERSION (workaround for pipe subshell shadowing on macOS /bin/sh)
-        VERSION=$(cat /tmp/.ci_version)
-
         # Copy .app directly from archive (no signing export needed)
         APP_PATH="build/ClaudeMeter.xcarchive/Products/Applications/ClaudeMeter.app"
         [ -d "$APP_PATH" ] || { echo "✗ .app not found in archive"; exit 1; }
 
-        # Stage DMG contents with Applications symlink
-        DMG_STAGE="/tmp/claudemeter-dmg-$$"
+        # Stage DMG contents with Applications symlink — use date+%s instead of $$ (Woodpecker eats one $)
+        DMG_STAGE="/tmp/claudemeter-dmg-$(date +%s)"
         rm -rf "$DMG_STAGE" && mkdir "$DMG_STAGE"
         cp -r "$APP_PATH" "$DMG_STAGE/ClaudeMeter.app"
         ln -s /Applications "$DMG_STAGE/Applications"
 
-        # Build DMG
-        DMG_NAME="ClaudeMeter-${VERSION}.dmg"
+        # Build DMG — read version from file, use $VAR (no braces) to avoid Woodpecker substitution
+        VER=$(cat /tmp/.ci_version)
+        DMG_NAME="ClaudeMeter-$VER.dmg"
         hdiutil create \
-          -volname "ClaudeMeter ${VERSION}" \
+          -volname "ClaudeMeter $VER" \
           -srcfolder "$DMG_STAGE" \
           -ov \
           -format UDZO \
-          "build/${DMG_NAME}"
+          "build/$DMG_NAME"
         rm -rf "$DMG_STAGE"
 
-        echo "✓ DMG built: build/${DMG_NAME}"
+        echo "✓ DMG built: build/$DMG_NAME"
 
   - name: github_release
     image: bash
@@ -114,28 +111,30 @@ steps:
       - |
         set -euo pipefail
 
-        # Find DMG by glob — avoids inter-step file passing issues
+        # Find DMG by glob
         DMG_PATH=$(ls build/*.dmg 2>/dev/null | head -1)
         [ -n "$DMG_PATH" ] || { echo "✗ No DMG found in build/"; exit 1; }
         DMG_NAME=$(basename "$DMG_PATH")
-        VERSION=$(echo "$DMG_NAME" | sed 's/ClaudeMeter-//' | sed 's/\.dmg$//')
+        VER=$(echo "$DMG_NAME" | sed 's/ClaudeMeter-//' | sed 's/\.dmg$//')
+        TAG="v$VER"
 
-        # Create or update GitHub release
-        TAG="v${VERSION}"
+        echo "→ Releasing $TAG..."
 
-        # If tag doesn't exist yet (manual run without a tag), create it
+        # Create tag if missing (manual run without a tag)
         git tag "$TAG" 2>/dev/null || true
-        git push https://x-access-token:${GITHUB_TOKEN}@github.com/${CI_REPO}.git "$TAG" 2>/dev/null || true
+        git push "https://x-access-token:$GITHUB_TOKEN@github.com/$CI_REPO.git" "$TAG" 2>/dev/null || true
 
-        # Create release (idempotent — delete existing draft if any)
+        # Create release (idempotent)
         gh release delete "$TAG" --repo "$CI_REPO" --yes 2>/dev/null || true
+        NOTES=$(printf '## ClaudeMeter %s\n\n### Install\n1. Download the DMG below\n2. Open it and drag ClaudeMeter.app to Applications\n3. Right-click → Open on first launch (unsigned build)\n\n### Changes\nSee [commits](https://github.com/%s/commits/%s) for full change history.' \
+          "$VER" "$CI_REPO" "$CI_COMMIT_SHA")
         gh release create "$TAG" \
           --repo "$CI_REPO" \
-          --title "ClaudeMeter ${VERSION}" \
-          --notes "$(printf '## ClaudeMeter %s\n\n### Install\n1. Download the DMG below\n2. Open it and drag ClaudeMeter.app to Applications\n3. Right-click → Open on first launch (unsigned build)\n\n### Changes\nSee [commits](%s/commits/%s) for full change history.' "$VERSION" "https://github.com/$CI_REPO" "$CI_COMMIT_SHA")" \
+          --title "ClaudeMeter $VER" \
+          --notes "$NOTES" \
           "$DMG_PATH"
 
-        echo "✓ Released: https://github.com/${CI_REPO}/releases/tag/${TAG}"
+        echo "✓ Released: https://github.com/$CI_REPO/releases/tag/$TAG"
 
   - name: notify_result
     image: bash
@@ -149,45 +148,42 @@ steps:
         DMG_PATH=$(ls build/*.dmg 2>/dev/null | head -1 || true)
         if [ -n "$DMG_PATH" ]; then
           DMG_NAME=$(basename "$DMG_PATH")
-          VERSION=$(echo "$DMG_NAME" | sed 's/ClaudeMeter-//' | sed 's/\.dmg$//')
+          VER=$(echo "$DMG_NAME" | sed 's/ClaudeMeter-//' | sed 's/\.dmg$//')
         else
           DMG_NAME=""
-          VERSION=$(xcodebuild -showBuildSettings \
-            -project ClaudeMeter.xcodeproj \
-            -scheme ClaudeMeter 2>/dev/null \
-            | awk '/MARKETING_VERSION/{print $3}' || echo "unknown")
+          VER=$(grep -m1 'MARKETING_VERSION' ClaudeMeter.xcodeproj/project.pbxproj \
+            | awk -F'= ' '{print $2}' | tr -d '; ' || echo "unknown")
         fi
 
-        # Trigger type
-        case "${CI_PIPELINE_EVENT:-}" in
-          tag)    TRIGGER="🏷 Tag ${CI_COMMIT_TAG:-}" ;;
+        # Trigger type — CI_PIPELINE_EVENT is substituted by Woodpecker correctly
+        case "$CI_PIPELINE_EVENT" in
+          tag)    TRIGGER="🏷 Tag $CI_COMMIT_TAG" ;;
           manual) TRIGGER="🖐 Manual" ;;
-          push)   TRIGGER="🔀 Push to ${CI_COMMIT_BRANCH:-main}" ;;
-          *)      TRIGGER="${CI_PIPELINE_EVENT:-unknown}" ;;
+          push)   TRIGGER="🔀 Push to $CI_COMMIT_BRANCH" ;;
+          *)      TRIGGER="$CI_PIPELINE_EVENT" ;;
         esac
 
-        # First line of commit message, truncated
-        COMMIT_MSG=$(printf '%s' "${CI_COMMIT_MESSAGE:-}" | head -1 | cut -c1-72)
+        SHORT_SHA=$(echo "$CI_COMMIT_SHA" | cut -c1-7)
+        COMMIT_MSG=$(printf '%s' "$CI_COMMIT_MESSAGE" | head -1 | cut -c1-72)
+        REPO_URL="https://github.com/$CI_REPO"
+        COMMIT_URL="$REPO_URL/commit/$CI_COMMIT_SHA"
+        RELEASE_URL="$REPO_URL/releases/tag/v$VER"
 
-        REPO_URL="https://github.com/${CI_REPO}"
-        COMMIT_URL="${REPO_URL}/commit/${CI_COMMIT_SHA}"
-        RELEASE_URL="${REPO_URL}/releases/tag/v${VERSION}"
-
-        if [ "${CI_PIPELINE_STATUS:-}" = "success" ]; then
+        if [ "$CI_PIPELINE_STATUS" = "success" ]; then
           GH_STATE="success"
-          GH_DESC="DMG build passed (v${VERSION})"
+          GH_DESC="DMG build passed (v$VER)"
           MSG=$(printf '✅ <b>ClaudeMeter Build #%s — Passed</b>\n\n📦 <b>Version:</b> <code>%s</code>\n🌿 <b>Branch:</b> <code>%s</code>\n🔖 <b>Commit:</b> <a href="%s">%s</a>\n💬 <i>%s</i>\n🎯 <b>Trigger:</b> %s\n\n📥 <b>DMG:</b> <code>%s</code>\n🚀 <a href="%s">GitHub Release v%s</a>\n\n🔍 <a href="%s">View Pipeline #%s</a>' \
-            "${CI_PIPELINE_NUMBER}" "${VERSION}" "${CI_COMMIT_BRANCH:-main}" \
-            "${COMMIT_URL}" "${CI_COMMIT_SHA:0:7}" "${COMMIT_MSG}" "${TRIGGER}" \
-            "${DMG_NAME}" "${RELEASE_URL}" "${VERSION}" \
-            "${CI_PIPELINE_URL}" "${CI_PIPELINE_NUMBER}")
+            "$CI_PIPELINE_NUMBER" "$VER" "$CI_COMMIT_BRANCH" \
+            "$COMMIT_URL" "$SHORT_SHA" "$COMMIT_MSG" "$TRIGGER" \
+            "$DMG_NAME" "$RELEASE_URL" "$VER" \
+            "$CI_PIPELINE_URL" "$CI_PIPELINE_NUMBER")
         else
           GH_STATE="failure"
           GH_DESC="DMG build failed"
           MSG=$(printf '❌ <b>ClaudeMeter Build #%s — Failed</b>\n\n🌿 <b>Branch:</b> <code>%s</code>\n🔖 <b>Commit:</b> <a href="%s">%s</a>\n💬 <i>%s</i>\n🎯 <b>Trigger:</b> %s\n\n🔍 <a href="%s">View Pipeline #%s</a>' \
-            "${CI_PIPELINE_NUMBER}" "${CI_COMMIT_BRANCH:-main}" \
-            "${COMMIT_URL}" "${CI_COMMIT_SHA:0:7}" "${COMMIT_MSG}" "${TRIGGER}" \
-            "${CI_PIPELINE_URL}" "${CI_PIPELINE_NUMBER}")
+            "$CI_PIPELINE_NUMBER" "$CI_COMMIT_BRANCH" \
+            "$COMMIT_URL" "$SHORT_SHA" "$COMMIT_MSG" "$TRIGGER" \
+            "$CI_PIPELINE_URL" "$CI_PIPELINE_NUMBER")
         fi
 
         curl -s -X POST \
