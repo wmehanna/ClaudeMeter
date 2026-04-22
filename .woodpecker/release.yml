@@ -50,22 +50,23 @@ steps:
     commands:
       - |
         set -euo pipefail
+        mkdir -p build
 
-        # Resolve version: tag name → fallback to marketing version + pipeline number
+        # Resolve version: tag → pbxproj MARKETING_VERSION + pipeline number
         if [ -n "${CI_COMMIT_TAG:-}" ]; then
           VERSION="${CI_COMMIT_TAG#v}"
         else
-          MARKETING=$(xcodebuild -showBuildSettings \
-            -project ClaudeMeter.xcodeproj \
-            -scheme ClaudeMeter 2>/dev/null \
-            | awk '/MARKETING_VERSION/{print $3}')
-          VERSION="${MARKETING}-build.${CI_PIPELINE_NUMBER}"
+          MARKETING=$(grep -m1 'MARKETING_VERSION' ClaudeMeter.xcodeproj/project.pbxproj \
+            | awk -F'= ' '{print $2}' | tr -d '; ')
+          VERSION="${MARKETING:-0.0}-build.${CI_PIPELINE_NUMBER}"
         fi
 
+        # Persist VERSION before the archive pipe (pipe can shadow shell vars on some macOS shells)
+        printf '%s' "$VERSION" > /tmp/.ci_version
         echo "→ Building version $VERSION..."
 
         # Archive (universal arm64 + x86_64)
-        xcodebuild archive \
+        ARCHIVE_LOG=$(xcodebuild archive \
           -project ClaudeMeter.xcodeproj \
           -scheme ClaudeMeter \
           -configuration Release \
@@ -75,7 +76,12 @@ steps:
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
-          2>&1 | grep -E "error:|warning:|ARCHIVE SUCCEEDED|ARCHIVE FAILED"
+          2>&1)
+        echo "$ARCHIVE_LOG" | grep -E "error:|ARCHIVE SUCCEEDED|ARCHIVE FAILED" || true
+        echo "$ARCHIVE_LOG" | grep -q "ARCHIVE SUCCEEDED" || { echo "✗ Archive failed"; exit 1; }
+
+        # Re-read VERSION (workaround for pipe subshell shadowing on macOS /bin/sh)
+        VERSION=$(cat /tmp/.ci_version)
 
         # Copy .app directly from archive (no signing export needed)
         APP_PATH="build/ClaudeMeter.xcarchive/Products/Applications/ClaudeMeter.app"
@@ -98,8 +104,6 @@ steps:
         rm -rf "$DMG_STAGE"
 
         echo "✓ DMG built: build/${DMG_NAME}"
-        echo "$VERSION" > build/.version
-        echo "$DMG_NAME" > build/.dmg_name
 
   - name: github_release
     image: bash
