@@ -59,7 +59,8 @@ steps:
         else
           _M=$(grep -m1 'MARKETING_VERSION' ClaudeMeter.xcodeproj/project.pbxproj \
             | awk -F'= ' '{print $2}' | tr -d '; ')
-          printf '%s' "${_M:-0.0}-build.$CI_PIPELINE_NUMBER" > /tmp/.ci_version
+          [ -z "$_M" ] && _M="0.0"
+          printf '%s' "$_M-build.$CI_PIPELINE_NUMBER" > /tmp/.ci_version
         fi
 
         echo "→ Building version $(cat /tmp/.ci_version)..."
