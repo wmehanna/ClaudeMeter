@@ -49,11 +49,12 @@ steps:
         from_secret: github_token
     commands:
       - |
-        set -euo pipefail
+        set -eo pipefail
         mkdir -p build
 
         # Write version to file using only CI variables.
         # Woodpecker substitutes all dollar-brace patterns before the shell runs.
+        # CI_COMMIT_TAG may be unset (not just empty) on push/manual events — no -u flag.
         if [ -n "$CI_COMMIT_TAG" ]; then
           printf '%s' "$CI_COMMIT_TAG" | sed 's/^v//' > /tmp/.ci_version
         else
