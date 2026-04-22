@@ -110,8 +110,11 @@ steps:
       - |
         set -euo pipefail
 
-        VERSION=$(cat build/.version)
-        DMG_NAME=$(cat build/.dmg_name)
+        # Find DMG by glob — avoids inter-step file passing issues
+        DMG_PATH=$(ls build/*.dmg 2>/dev/null | head -1)
+        [ -n "$DMG_PATH" ] || { echo "✗ No DMG found in build/"; exit 1; }
+        DMG_NAME=$(basename "$DMG_PATH")
+        VERSION=$(echo "$DMG_NAME" | sed 's/ClaudeMeter-//' | sed 's/\.dmg$//')
 
         # Create or update GitHub release
         TAG="v${VERSION}"
@@ -126,7 +129,7 @@ steps:
           --repo "$CI_REPO" \
           --title "ClaudeMeter ${VERSION}" \
           --notes "$(printf '## ClaudeMeter %s\n\n### Install\n1. Download the DMG below\n2. Open it and drag ClaudeMeter.app to Applications\n3. Right-click → Open on first launch (unsigned build)\n\n### Changes\nSee [commits](%s/commits/%s) for full change history.' "$VERSION" "https://github.com/$CI_REPO" "$CI_COMMIT_SHA")" \
-          "build/${DMG_NAME}"
+          "$DMG_PATH"
 
         echo "✓ Released: https://github.com/${CI_REPO}/releases/tag/${TAG}"
 
@@ -139,12 +142,17 @@ steps:
         from_secret: github_token
     commands:
       - |
-        VERSION=$(cat build/.version 2>/dev/null || \
-          xcodebuild -showBuildSettings \
+        DMG_PATH=$(ls build/*.dmg 2>/dev/null | head -1 || true)
+        if [ -n "$DMG_PATH" ]; then
+          DMG_NAME=$(basename "$DMG_PATH")
+          VERSION=$(echo "$DMG_NAME" | sed 's/ClaudeMeter-//' | sed 's/\.dmg$//')
+        else
+          DMG_NAME=""
+          VERSION=$(xcodebuild -showBuildSettings \
             -project ClaudeMeter.xcodeproj \
             -scheme ClaudeMeter 2>/dev/null \
             | awk '/MARKETING_VERSION/{print $3}' || echo "unknown")
-        DMG_NAME=$(cat build/.dmg_name 2>/dev/null || echo "")
+        fi
 
         # Trigger type
         case "${CI_PIPELINE_EVENT:-}" in
