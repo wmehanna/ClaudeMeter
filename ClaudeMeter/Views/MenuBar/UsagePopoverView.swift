@@ -17,9 +17,11 @@ struct UsagePopoverView: View {
 
                 Spacer()
 
-                Button(action: {
+                statusBadge
+
+                Button {
                     Task { await appModel.refreshUsage(forceRefresh: true) }
-                }) {
+                } label: {
                     if appModel.isRefreshing {
                         ProgressView().scaleEffect(0.7).frame(width: 20, height: 20)
                     } else {
@@ -35,6 +37,11 @@ struct UsagePopoverView: View {
 
             Divider()
 
+            if !appModel.claudeStatus.incidents.isEmpty {
+                incidentPanel
+                Divider()
+            }
+
             // Error banner
             if let errorMessage = appModel.errorMessage {
                 VStack(alignment: .leading, spacing: 8) {
@@ -49,7 +56,10 @@ struct UsagePopoverView: View {
                         }
                         .buttonStyle(.bordered)
 
-                        if errorMessage.contains("invalid") || errorMessage.contains("expired") || errorMessage.contains("authentication") {
+                        let isAuthError = errorMessage.contains("invalid")
+                            || errorMessage.contains("expired")
+                            || errorMessage.contains("authentication")
+                        if isAuthError {
                             Button("Update Session Key") { openSettingsFront() }
                                 .buttonStyle(.borderedProminent)
                         }
@@ -119,6 +129,44 @@ struct UsagePopoverView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Usage Dashboard")
+    }
+
+    @ViewBuilder
+    private var statusBadge: some View {
+        if appModel.claudeStatus.isOperational {
+            Label("Operational", systemImage: "checkmark.circle.fill")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(Color.green))
+                .help("All systems operational")
+        } else {
+            let name = appModel.claudeStatus.incidents.first?.name ?? "Incident ongoing"
+            Text(name)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(Color.red))
+                .help(name)
+        }
+    }
+
+    private var incidentPanel: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(appModel.claudeStatus.incidents) { incident in
+                    IncidentRowView(incident: incident)
+                }
+            }
+            .padding(10)
+        }
+        .frame(maxHeight: 160)
+        .background(Color.red.opacity(0.05))
     }
 
     private func popoverIcon(forKey key: String) -> String {

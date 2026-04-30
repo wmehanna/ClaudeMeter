@@ -12,6 +12,7 @@ struct MenuBarIconView: View {
     var customPillsMetrics: [DiscoveredMetric] = DiscoveredMetric.defaults
     var customBarMetrics: [DiscoveredMetric] = DiscoveredMetric.defaults
     var dualBarMetrics: [DiscoveredMetric] = Array(DiscoveredMetric.defaults.prefix(2))
+    var claudeOperational: Bool = true
 
     private var singleValue: Double { metricValues[singleMetricKey] ?? 0 }
 
@@ -28,26 +29,32 @@ struct MenuBarIconView: View {
     }
 
     var body: some View {
-        switch iconStyle {
-        case .battery:
-            BatteryIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
-        case .circular:
-            CircularGaugeIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
-        case .minimal:
-            MinimalIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
-        case .segments:
-            SegmentedBarIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
-        case .dualBar:
-            DualBarIcon(metrics: dualBarMetrics, metricValues: metricValues,
-                        status: status, isLoading: isLoading, isStale: isStale)
-        case .customBar:
-            CustomBarIcon(metrics: customBarMetrics, metricValues: metricValues,
-                          status: status, isLoading: isLoading, isStale: isStale)
-        case .customPills:
-            CustomPillsIcon(metrics: customPillsMetrics, metricValues: metricValues,
-                            status: status, isLoading: isLoading, isStale: isStale, fontSize: fontSize)
-        case .gauge:
-            GaugeIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
+        HStack(spacing: 3) {
+            switch iconStyle {
+            case .battery:
+                BatteryIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
+            case .circular:
+                CircularGaugeIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
+            case .minimal:
+                MinimalIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
+            case .segments:
+                SegmentedBarIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
+            case .dualBar:
+                DualBarIcon(metrics: dualBarMetrics, metricValues: metricValues,
+                            status: status, isLoading: isLoading, isStale: isStale)
+            case .customBar:
+                CustomBarIcon(metrics: customBarMetrics, metricValues: metricValues,
+                              status: status, isLoading: isLoading, isStale: isStale)
+            case .customPills:
+                CustomPillsIcon(metrics: customPillsMetrics, metricValues: metricValues,
+                                status: status, isLoading: isLoading, isStale: isStale, fontSize: fontSize)
+            case .gauge:
+                GaugeIcon(percentage: singleValue, status: singleStatus, isLoading: isLoading, isStale: isStale)
+            }
+
+            Circle()
+                .fill(claudeOperational ? Color.green : Color.red)
+                .frame(width: 8, height: 8)
         }
     }
 }

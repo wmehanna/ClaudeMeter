@@ -7,12 +7,13 @@ struct MenuBarIconRenderer {
                 iconStyle: IconStyle, fontSize: Double = 12, singleMetricKey: String = "five_hour",
                 customPillsMetrics: [DiscoveredMetric] = [],
                 customBarMetrics: [DiscoveredMetric] = [],
-                dualBarMetrics: [DiscoveredMetric] = []) -> NSImage {
+                dualBarMetrics: [DiscoveredMetric] = [],
+                claudeOperational: Bool = true) -> NSImage {
         let iconView = MenuBarIconView(
             metricValues: metricValues, status: status, isLoading: isLoading, isStale: isStale,
             iconStyle: iconStyle, fontSize: fontSize, singleMetricKey: singleMetricKey,
             customPillsMetrics: customPillsMetrics, customBarMetrics: customBarMetrics,
-            dualBarMetrics: dualBarMetrics
+            dualBarMetrics: dualBarMetrics, claudeOperational: claudeOperational
         )
 
         let renderer = ImageRenderer(content: iconView)

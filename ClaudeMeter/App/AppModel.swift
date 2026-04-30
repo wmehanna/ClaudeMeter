@@ -23,6 +23,7 @@ final class AppModel {
     }
 
     var usageData: UsageData?
+    var claudeStatus: ClaudeStatus = .operational
     var isLoading: Bool = false
     var isRefreshing: Bool = false
     var errorMessage: String?
@@ -35,6 +36,7 @@ final class AppModel {
     @ObservationIgnored private let keychainRepository: KeychainRepositoryProtocol
     @ObservationIgnored private let usageService: UsageServiceProtocol
     @ObservationIgnored private let notificationService: NotificationServiceProtocol
+    @ObservationIgnored private let claudeStatusService: ClaudeStatusServiceProtocol
 
     // MARK: - Private
 
@@ -50,7 +52,8 @@ final class AppModel {
         settingsRepository: SettingsRepositoryProtocol = SettingsRepository(),
         keychainRepository: KeychainRepositoryProtocol = KeychainRepository(),
         usageService: UsageServiceProtocol? = nil,
-        notificationService: NotificationServiceProtocol? = nil
+        notificationService: NotificationServiceProtocol? = nil,
+        claudeStatusService: ClaudeStatusServiceProtocol = ClaudeStatusService()
     ) {
         self.settingsRepository = settingsRepository
         self.keychainRepository = keychainRepository
@@ -67,6 +70,7 @@ final class AppModel {
         self.notificationService = notificationService ?? NotificationService(
             settingsRepository: settingsRepository
         )
+        self.claudeStatusService = claudeStatusService
 
         self.notificationService.setupDelegate()
     }
@@ -80,6 +84,8 @@ final class AppModel {
 
         isSetupComplete = await keychainRepository.exists(account: "default")
         isReady = true
+
+        claudeStatus = await claudeStatusService.fetchStatus()
 
         if isSetupComplete {
             await refreshUsage(forceRefresh: true)
@@ -109,6 +115,7 @@ final class AppModel {
             isRefreshing = false
         }
 
+        async let statusFetch = claudeStatusService.fetchStatus()
         do {
             let data = try await usageService.fetchUsage(forceRefresh: forceRefresh)
             usageData = data
@@ -119,6 +126,7 @@ final class AppModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+        claudeStatus = await statusFetch
     }
 
     // MARK: - Session Key
