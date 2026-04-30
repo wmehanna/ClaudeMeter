@@ -89,6 +89,7 @@ final class MenuBarManager {
         withObservationTracking {
             _ = appModel.usageData
             _ = appModel.isLoading
+            _ = appModel.claudeStatus
             _ = appModel.settings.iconStyle
             _ = appModel.settings.customPillsFontSize
             _ = appModel.settings.singleMetricKey
@@ -119,42 +120,48 @@ final class MenuBarManager {
         let available    = usageData?.discoveredMetrics ?? DiscoveredMetric.defaults
 
         func resolve(_ keys: [String]) -> [DiscoveredMetric] {
-            keys.compactMap { k in available.first { $0.key == k } }
+            keys.compactMap { key in available.first { $0.key == key } }
         }
 
         let pillsMetrics = resolve(appModel.settings.customPillsKeys)
         let barMetrics   = resolve(appModel.settings.customBarKeys)
         let dualMetrics  = resolve(appModel.settings.dualBarKeys)
 
+        let operational  = appModel.claudeStatus.isOperational
+
+        let icon: NSImage
         if let cached = iconCache.get(
             metricValues: metricValues, status: status, isLoading: isLoading, isStale: isStale,
             iconStyle: style, fontSize: fontSize, singleMetricKey: singleKey,
-            customPillsMetrics: pillsMetrics, customBarMetrics: barMetrics, dualBarMetrics: dualMetrics
+            customPillsMetrics: pillsMetrics, customBarMetrics: barMetrics, dualBarMetrics: dualMetrics,
+            claudeOperational: operational
         ) {
-            button.image = cached
-            return
+            icon = cached
+        } else {
+            icon = iconRenderer.render(
+                metricValues: metricValues, status: status, isLoading: isLoading, isStale: isStale,
+                iconStyle: style, fontSize: fontSize, singleMetricKey: singleKey,
+                customPillsMetrics: pillsMetrics, customBarMetrics: barMetrics, dualBarMetrics: dualMetrics,
+                claudeOperational: operational
+            )
+            iconCache.set(
+                icon, metricValues: metricValues, status: status, isLoading: isLoading, isStale: isStale,
+                iconStyle: style, fontSize: fontSize, singleMetricKey: singleKey,
+                customPillsMetrics: pillsMetrics, customBarMetrics: barMetrics, dualBarMetrics: dualMetrics,
+                claudeOperational: operational
+            )
         }
 
-        let image = iconRenderer.render(
-            metricValues: metricValues, status: status, isLoading: isLoading, isStale: isStale,
-            iconStyle: style, fontSize: fontSize, singleMetricKey: singleKey,
-            customPillsMetrics: pillsMetrics, customBarMetrics: barMetrics, dualBarMetrics: dualMetrics
-        )
-
-        iconCache.set(
-            image, metricValues: metricValues, status: status, isLoading: isLoading, isStale: isStale,
-            iconStyle: style, fontSize: fontSize, singleMetricKey: singleKey,
-            customPillsMetrics: pillsMetrics, customBarMetrics: barMetrics, dualBarMetrics: dualMetrics
-        )
-
-        button.image = image
+        button.image = icon
+        button.imagePosition = .imageOnly
+        button.attributedTitle = NSAttributedString(string: "")
     }
 
     // MARK: - Popover Control
 
     @objc private func togglePopover() {
         guard let popover else { return }
-        popover.isShown ? closePopover() : showPopover()
+        if popover.isShown { closePopover() } else { showPopover() }
     }
 
     private func showPopover() {
